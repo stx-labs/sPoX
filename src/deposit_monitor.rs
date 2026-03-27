@@ -1,7 +1,7 @@
 //! Module to monitor for pending deposits
 
 use std::collections::HashMap;
-use std::num::{NonZero, NonZeroUsize};
+use std::num::NonZeroUsize;
 use std::str::FromStr as _;
 
 use bitcoin::{BlockHash, ScriptBuf, Txid};
@@ -65,7 +65,8 @@ pub struct DepositMonitor {
 
 // TODO: make cache size configurable
 // As for now numbers are chosen to keep cache size around 4MB
-const TX_HEX_CACHE_SIZE: NonZeroUsize = NonZero::new(8_000).expect("Cache size must be non-zero");
+const TX_HEX_CACHE_SIZE: NonZeroUsize =
+    NonZeroUsize::new(8_000).expect("Cache size must be non-zero");
 
 /// How many created deposits to keep track of. This should keep the max memory
 /// usage below 10MB.

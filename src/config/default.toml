@@ -28,7 +28,7 @@ signers_xonly = "000000000000000000000000000000000000000000000000000000000000000
 recipient = "ST3497E9JFQ7KB9VEHAZRWYKF3296WQZEXBPXG193"
 max_fee = 20000
 lock_time = 950
-# This MUST be configured correctly in non test environments
+# This MUST be configured correctly in non-test environments
 reclaim_script = ""
 
 # !! ===========================================================================
