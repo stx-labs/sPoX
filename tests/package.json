@@ -1,0 +1,23 @@
+{
+  "name": "stacking",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.33.0",
+  "description": "",
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@stacks/encryption": "7.4.0",
+    "@stacks/network": "7.3.1",
+    "@stacks/stacking": "7.4.0",
+    "@stacks/transactions": "7.4.0",
+    "dotenv": "17.3.1",
+    "pino": "10.3.1",
+    "pino-pretty": "10.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "tsx": "4.21.0"
+  }
+}
