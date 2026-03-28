@@ -6,6 +6,17 @@ as PoX rewards address when stacking.
 The stackers will use the signer key from devenv `signer-3` (for no specific reason)
 when stacking.
 
+## Install test dependencies
+
+The scripts in `tests/` require `pnpm`.
+
+Install the required dependencies for the demo:
+
+```bash
+cd tests
+pnpm install --frozen-lockfile
+```
+
 ## Run devenv
 
 Ensure devenv (from sBTC) is running, and once Nakamoto is reached and the sBTC signers
