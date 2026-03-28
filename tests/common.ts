@@ -9,11 +9,11 @@ import { StackingClient } from '@stacks/stacking';
 export let logger: Logger;
 if (process.env.STACKS_LOG_JSON === '1') {
   logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL || 'debug',
   });
 } else {
   logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL || 'debug',
     transport: {
       target: 'pino-pretty',
       options: {
