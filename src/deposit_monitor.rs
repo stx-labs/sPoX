@@ -1,7 +1,8 @@
 //! Module to monitor for pending deposits
 
 use std::collections::HashMap;
-use std::num::NonZero;
+use std::num::NonZeroUsize;
+use std::str::FromStr as _;
 
 use bitcoin::{BlockHash, ScriptBuf, Txid};
 use emily_client::models::CreateDepositRequestBody;
@@ -59,12 +60,18 @@ pub struct DepositMonitor {
     context: Context,
     monitored: HashMap<ScriptBuf, MonitoredDeposit>,
     tx_hex_cache: LruCache<(Txid, BlockHash), String>,
+    created_deposits: LruCache<(Txid, u32), ()>,
 }
 
 // TODO: make cache size configurable
 // As for now numbers are chosen to keep cache size around 4MB
-const TX_HEX_CACHE_SIZE: NonZero<usize> =
-    NonZero::new(8_000_usize).expect("Cache size must be non-zero");
+const TX_HEX_CACHE_SIZE: NonZeroUsize =
+    NonZeroUsize::new(8_000).expect("Cache size must be non-zero");
+
+/// How many created deposits to keep track of. This should keep the max memory
+/// usage below 10MB.
+const CREATED_DEPOSITS_CACHE_SIZE: NonZeroUsize =
+    NonZeroUsize::new(100_000).expect("Cache size must be non-zero");
 
 impl DepositMonitor {
     /// Creates a new `DepositMonitor`
@@ -78,6 +85,7 @@ impl DepositMonitor {
             context,
             monitored,
             tx_hex_cache: LruCache::new(TX_HEX_CACHE_SIZE),
+            created_deposits: LruCache::new(CREATED_DEPOSITS_CACHE_SIZE),
         }
     }
 
@@ -136,7 +144,13 @@ impl DepositMonitor {
 
         let create_deposits = utxos
             .iter()
-            .flat_map(|utxo| {
+            .filter_map(|utxo| {
+                // Emily will nop for duplicates, still we try avoiding wasting
+                // time for deposits we already created in this session.
+                if self.created_deposits.get(&(utxo.txid, utxo.vout)).is_some() {
+                    return None;
+                }
+
                 self.get_deposit_from_utxo(utxo, chain_tip)
                     .inspect_err(|error| match error {
                         Error::DepositExpired => tracing::info!(
@@ -159,5 +173,23 @@ impl DepositMonitor {
             .collect();
 
         Ok(create_deposits)
+    }
+
+    /// Mark a deposit as (locally) created
+    pub fn deposit_created(&mut self, bitcoin_txid: &str, bitcoin_tx_output_index: u32) {
+        match Txid::from_str(bitcoin_txid) {
+            Ok(txid) => {
+                self.created_deposits
+                    .put((txid, bitcoin_tx_output_index), ());
+            }
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    txid = %bitcoin_txid,
+                    vout = %bitcoin_tx_output_index,
+                    "failed to parse transaction id"
+                );
+            }
+        };
     }
 }

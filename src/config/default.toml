@@ -27,7 +27,8 @@ bitcoin_rpc_endpoint = "http://devnet:devnet@127.0.0.1:18443"
 signers_xonly = "0000000000000000000000000000000000000000000000000000000000000001"
 recipient = "ST3497E9JFQ7KB9VEHAZRWYKF3296WQZEXBPXG193"
 max_fee = 20000
-lock_time = 10
+lock_time = 950
+# This MUST be configured correctly in non-test environments
 reclaim_script = ""
 
 # !! ===========================================================================

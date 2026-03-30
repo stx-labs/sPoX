@@ -60,7 +60,6 @@ async fn fetch_and_create_deposits(
     }
 
     for deposit in deposits {
-        // TODO: emily will nop for duplicates, but we shouldn't send them
         if let Err(error) = deposit_api::create_deposit(emily_config, deposit.clone()).await {
             tracing::warn!(
                 %error,
@@ -74,6 +73,7 @@ async fn fetch_and_create_deposits(
                 vout = %deposit.bitcoin_tx_output_index,
                 "created deposit in emily"
             );
+            deposit_monitor.deposit_created(&deposit.bitcoin_txid, deposit.bitcoin_tx_output_index);
         }
     }
 
