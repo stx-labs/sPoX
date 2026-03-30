@@ -1,0 +1,20 @@
+emily_endpoint = "http://127.0.0.1:3031"
+bitcoin_rpc_endpoint = "http://devnet:devnet@127.0.0.1:18443"
+
+[stacks]
+rpc_endpoint = "http://127.0.0.1:20443"
+deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"
+
+[deposit.alice]
+signers_xonly = "0000000000000000000000000000000000000000000000000000000000000001"
+recipient = "ST2FQWJMF9CGPW34ZWK8FEPNK072NEV1VKRNBBMJ9"
+max_fee = 5000
+lock_time = 100
+reclaim_script = ""
+
+[deposit.bob]
+signers_xonly = "0000000000000000000000000000000000000000000000000000000000000001"
+recipient = "ST2BMYXHQ63YP410C57808B1K9APN38KDQM9A0E6S"
+max_fee = 2000
+lock_time = 200
+reclaim_script = ""
