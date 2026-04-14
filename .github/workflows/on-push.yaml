@@ -150,12 +150,10 @@ jobs:
         id: run_rust_tests
         run: cargo-nextest nextest --color always run --no-fail-fast --archive-file nextest-archive.tar.zst
 
-      - name: Install contracts dependencies
-        id: install_contracts_deps
-        working-directory: ./contracts
-        run: pnpm install
+      - name: Install node dependencies
+        id: install_node_deps
+        run: pnpm --recursive install
 
-      - name: Run Unit Tests (contracts)
+      - name: Run Unit Tests (Node)
         id: run_node_tests
-        working-directory: ./contracts
-        run: pnpm test
+        run: pnpm --recursive test

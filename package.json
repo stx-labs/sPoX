@@ -1,0 +1,8 @@
+{
+  "name": "spox",
+  "private": true,
+  "engines": {
+    "pnpm": "10"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
