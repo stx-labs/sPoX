@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 22.1.0
+  NODE_VERSION: 22.22.2
   NEXTEST_VERSION: 0.9.88
   CARGO_VET_VERSION: 0.10.0
   CARGO_INCREMENTAL: 0
@@ -152,7 +152,7 @@ jobs:
 
       - name: Install node dependencies
         id: install_node_deps
-        run: pnpm --recursive install
+        run: pnpm --recursive install --frozen-lockfile
 
       - name: Run Unit Tests (Node)
         id: run_node_tests
