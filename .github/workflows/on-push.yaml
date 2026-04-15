@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 22.22.2
+  NODE_VERSION: 24.14.1
   NEXTEST_VERSION: 0.9.88
   CARGO_VET_VERSION: 0.10.0
   CARGO_INCREMENTAL: 0

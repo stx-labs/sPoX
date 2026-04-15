@@ -11,22 +11,22 @@ importers:
   contracts:
     dependencies:
       '@stacks/clarinet-sdk':
-        specifier: ^3.9.0
+        specifier: 3.16.0
         version: 3.16.0
       '@stacks/transactions':
-        specifier: ^7.2.0
+        specifier: 7.4.0
         version: 7.4.0
       '@types/node':
-        specifier: ^24.4.0
+        specifier: 24.12.2
         version: 24.12.2
       chokidar-cli:
-        specifier: ^3.0.0
+        specifier: 3.0.0
         version: 3.0.0
       vitest:
-        specifier: ^4.0.7
+        specifier: 4.1.4
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2))
       vitest-environment-clarinet:
-        specifier: ^3.0.0
+        specifier: 3.0.2
         version: 3.0.2(@stacks/clarinet-sdk@3.16.0)(vitest@4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)))
 
 packages:
