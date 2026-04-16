@@ -41,7 +41,7 @@
 (define-public (remove-addresses (address-ids (list 4000 uint)))
   (begin
     (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_UNAUTHORIZED)
-    (ok (map remove-single-address address-ids))
+    (ok (map remove-address address-ids))
   )
 )
 
@@ -53,19 +53,19 @@
 )
 
 (define-read-only (get-addresses (address-ids (list 400 uint)))
-  (map get-single-address address-ids)
+  (map get-address address-ids)
 )
 
-;; private functions
-;;
-
-(define-private (get-single-address (id uint))
+(define-read-only (get-address (id uint))
   (match (map-get? deposit-address id)
     entry (some (merge entry { id: id }))
     none
   )
 )
 
-(define-private (remove-single-address (id uint))
+;; private functions
+;;
+
+(define-private (remove-address (id uint))
   (map-delete deposit-address id)
 )
