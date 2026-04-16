@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 22.1.0
+  NODE_VERSION: 24.14.1
   NEXTEST_VERSION: 0.9.88
   CARGO_VET_VERSION: 0.10.0
   CARGO_INCREMENTAL: 0
@@ -42,17 +42,17 @@ jobs:
     steps:
       - name: Setup Mold
         id: setup_mold
-        uses: stacks-sbtc/actions/setup-mold@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/setup-mold@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           make-default: true
 
       - name: Checkout Repository
         id: checkout_Repository
-        uses: stacks-sbtc/actions/checkout@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/checkout@ed353a33594a2fa97ea6702d838e4a935cce374d
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/setup-rust-toolchain@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           components: clippy, rustfmt
           cache-key: "rust-tests"
@@ -74,23 +74,23 @@ jobs:
     steps:
       - name: Setup Mold
         id: setup_mold
-        uses: stacks-sbtc/actions/setup-mold@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/setup-mold@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           make-default: true
 
       - name: Checkout Repository
         id: checkout_Repository
-        uses: stacks-sbtc/actions/checkout@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/checkout@ed353a33594a2fa97ea6702d838e4a935cce374d
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/setup-rust-toolchain@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           cache-key: "rust-tests"
 
       - name: Install Action
         id: install_action
-        uses: stacks-sbtc/actions/install-action@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/install-action@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           tool: nextest@${{ env.NEXTEST_VERSION }}
 
@@ -104,7 +104,7 @@ jobs:
 
       - name: Upload Nextest Archives
         id: upload_nextest_archives
-        uses: stacks-sbtc/actions/upload-artifact@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/upload-artifact@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           name: nextest-archives
           path: ./target/nextest/*.tar.zst
@@ -120,22 +120,40 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_Repository
-        uses: stacks-sbtc/actions/checkout@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/checkout@ed353a33594a2fa97ea6702d838e4a935cce374d
+
+      - name: Setup Pnpm
+        id: setup_pnpm
+        uses: stacks-sbtc/actions/setup-pnpm@ed353a33594a2fa97ea6702d838e4a935cce374d
+
+      - name: Setup Node
+        id: setup_node
+        uses: stacks-sbtc/actions/setup-node@ed353a33594a2fa97ea6702d838e4a935cce374d
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
 
       - name: Install Action
         id: install_action
-        uses: stacks-sbtc/actions/install-action@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/install-action@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           tool: nextest@${{ env.NEXTEST_VERSION }}
 
       - name: Download Nextest Archives
         id: download_nextest_archives
-        uses: stacks-sbtc/actions/download-artifact@181f8c67da2707c66b5e31f24e7418c47adefdd1
+        uses: stacks-sbtc/actions/download-artifact@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           name: nextest-archives
           path: .
 
-      - name: Run Unit Tests
+      - name: Run Unit Tests (Rust)
         id: run_rust_tests
         run: cargo-nextest nextest --color always run --no-fail-fast --archive-file nextest-archive.tar.zst
 
+      - name: Install node dependencies
+        id: install_node_deps
+        run: pnpm --recursive install --frozen-lockfile
+
+      - name: Run Unit Tests (Node)
+        id: run_node_tests
+        run: pnpm --recursive test

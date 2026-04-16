@@ -4,15 +4,15 @@ use std::path::Path;
 
 use bitcoin::{ScriptBuf, XOnlyPublicKey};
 use clarity::types::chainstate::StacksAddress;
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
 use config::{Config, Environment, File};
 use serde::Deserialize;
 use url::Url;
 
 use crate::config::error::SpoxConfigError;
 use crate::config::serialization::{
-    duration_seconds_deserializer, principal_deserializer, script_deserializer,
-    stacks_address_deserializer, url_deserializer, xonly_deserializer,
+    contract_deserializer_option, duration_seconds_deserializer, principal_deserializer,
+    script_deserializer, stacks_address_deserializer, url_deserializer, xonly_deserializer,
 };
 
 pub mod error;
@@ -52,8 +52,12 @@ pub struct Settings {
     #[serde(deserialize_with = "duration_seconds_deserializer")]
     pub polling_interval: std::time::Duration,
     /// Monitored deposits
+    #[serde(default)]
     pub deposit: HashMap<String, MonitoredDepositConfig>,
-    /// Stacks config, used only for some CLI commands
+    /// Registry smart contract address
+    #[serde(default, deserialize_with = "contract_deserializer_option")]
+    pub registry_contract: Option<QualifiedContractIdentifier>,
+    /// Stacks config, used only for some CLI commands and for the registry contract
     pub stacks: Option<StacksConfig>,
 }
 
@@ -110,6 +114,10 @@ impl Settings {
             return Err(SpoxConfigError::ZeroDurationForbidden("polling_interval"));
         }
 
+        if self.registry_contract.is_some() && self.stacks.is_none() {
+            return Err(SpoxConfigError::MissingStacksConfig);
+        }
+
         Ok(())
     }
 }
@@ -147,6 +155,7 @@ mod tests {
             parse_url("http://devnet:devnet@127.0.0.1:18443")
         );
         assert_eq!(settings.polling_interval, Duration::from_secs(30));
+        assert!(settings.registry_contract.is_none());
     }
 
     #[test]
@@ -180,5 +189,30 @@ mod tests {
         set_var(format!("SPOX_{}", field.to_uppercase()), "0");
 
         Settings::new_from_default_config().expect_err("value for must be non zero");
+    }
+
+    #[test]
+    fn parsing_registry_contract() {
+        clear_env();
+
+        let registry = "ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039.registry";
+        set_var("SPOX_REGISTRY_CONTRACT", registry);
+
+        let settings = Settings::new_from_default_config().unwrap();
+
+        assert_eq!(settings.registry_contract.unwrap().to_string(), registry);
+    }
+
+    #[test_case("not an address"; "not an address")]
+    #[test_case("ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039"; "not a contract")]
+    fn parsing_registry_contract_fails(registry: &str) {
+        clear_env();
+
+        set_var("SPOX_REGISTRY_CONTRACT", registry);
+
+        assert!(matches!(
+            Settings::new_from_default_config(),
+            Err(SpoxConfigError::ConfigError(_))
+        ));
     }
 }
