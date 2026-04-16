@@ -1,64 +1,20 @@
 //! Module to monitor for pending deposits
 
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::str::FromStr as _;
 
-use bitcoin::{BlockHash, ScriptBuf, Txid};
+use bitcoin::{BlockHash, Txid};
 use emily_client::models::CreateDepositRequestBody;
 use lru::LruCache;
-use sbtc::deposits::{DepositScriptInputs, ReclaimScriptInputs};
 
 use crate::bitcoin::{BlockRef, Utxo};
-use crate::config::MonitoredDepositConfig;
 use crate::context::Context;
 use crate::error::Error;
-
-/// A deposit address to monitor
-#[derive(Debug, Clone)]
-pub struct MonitoredDeposit {
-    /// Monitored deposit alias
-    pub alias: String,
-    /// Deposit script inputs
-    pub deposit_script_inputs: DepositScriptInputs,
-    /// Reclaim script inputs
-    pub reclaim_script_inputs: ReclaimScriptInputs,
-}
-
-impl MonitoredDeposit {
-    /// Get the scriptPubKey for this deposit address
-    pub fn to_script_pubkey(&self) -> ScriptBuf {
-        sbtc::deposits::to_script_pubkey(
-            self.deposit_script_inputs.deposit_script(),
-            self.reclaim_script_inputs.reclaim_script(),
-        )
-    }
-}
-
-impl TryFrom<(&String, &MonitoredDepositConfig)> for MonitoredDeposit {
-    type Error = Error;
-
-    fn try_from((alias, deposit): (&String, &MonitoredDepositConfig)) -> Result<Self, Self::Error> {
-        let deposit = deposit.clone();
-        Ok(MonitoredDeposit {
-            alias: alias.clone(),
-            deposit_script_inputs: DepositScriptInputs {
-                signers_public_key: deposit.signers_xonly,
-                recipient: deposit.recipient,
-                max_fee: deposit.max_fee,
-            },
-            reclaim_script_inputs: ReclaimScriptInputs::try_new(
-                deposit.lock_time,
-                deposit.reclaim_script,
-            )?,
-        })
-    }
-}
+use crate::storage::Storage as _;
 
 /// Deposit monitor
 pub struct DepositMonitor {
     context: Context,
-    monitored: HashMap<ScriptBuf, MonitoredDeposit>,
     tx_hex_cache: LruCache<(Txid, BlockHash), String>,
     created_deposits: LruCache<(Txid, u32), ()>,
 }
@@ -75,15 +31,9 @@ const CREATED_DEPOSITS_CACHE_SIZE: NonZeroUsize =
 
 impl DepositMonitor {
     /// Creates a new `DepositMonitor`
-    pub fn new(context: Context, monitored: Vec<MonitoredDeposit>) -> Self {
-        let monitored = monitored
-            .into_iter()
-            .map(|m| (m.to_script_pubkey(), m))
-            .collect();
-
+    pub fn new(context: Context) -> Self {
         Self {
             context,
-            monitored,
             tx_hex_cache: LruCache::new(TX_HEX_CACHE_SIZE),
             created_deposits: LruCache::new(CREATED_DEPOSITS_CACHE_SIZE),
         }
@@ -96,8 +46,9 @@ impl DepositMonitor {
         chain_tip: &BlockRef,
     ) -> Result<CreateDepositRequestBody, Error> {
         let monitored_deposit = self
-            .monitored
-            .get(&utxo.script_pub_key)
+            .context
+            .storage()
+            .get_by_script(&utxo.script_pub_key)?
             .ok_or_else(|| Error::MissingMonitoredDeposit(utxo.script_pub_key.clone()))?;
 
         let unlocking_time =
@@ -137,10 +88,13 @@ impl DepositMonitor {
         &mut self,
         chain_tip: &BlockRef,
     ) -> Result<Vec<CreateDepositRequestBody>, Error> {
-        let utxos = self
-            .context
-            .bitcoin_client()
-            .get_utxos(self.monitored.keys())?;
+        let script_pubkeys = self.context.storage().get_scripts()?;
+        if script_pubkeys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // TODO: batch the get_utxos call
+        let utxos = self.context.bitcoin_client().get_utxos(&script_pubkeys)?;
 
         let create_deposits = utxos
             .iter()

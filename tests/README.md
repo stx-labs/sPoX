@@ -25,7 +25,8 @@ bootstrap create a donation for them.
 ```bash
 # From sBTC repo
 make devenv-up
-cargo run -p signer --bin demo-cli donation --amount 10000
+# Wait for devenv bootstrap, then fund the sBTC signers
+cargo run -p signer --bin demo-cli donation
 ```
 
 ## Fund the stackers

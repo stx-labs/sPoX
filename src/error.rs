@@ -31,6 +31,10 @@ pub enum Error {
     #[error("could not parse the provided URL: {0}")]
     InvalidUrl(#[source] url::ParseError),
 
+    /// Poisoned mutex
+    #[error("poisoned mutex")]
+    PoisonedMutex,
+
     /// No chain tip found.
     #[error("no bitcoin chain tip")]
     NoChainTip,
