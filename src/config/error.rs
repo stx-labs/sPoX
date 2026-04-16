@@ -8,6 +8,10 @@ pub enum SpoxConfigError {
     #[error("duration for {0} must be nonzero")]
     ZeroDurationForbidden(&'static str),
 
+    /// Missing required Stacks config
+    #[error("missing required stacks config")]
+    MissingStacksConfig,
+
     /// An error returned during parsing and building the configuration object
     #[error("cannot parse and build configuration: {0}")]
     ConfigError(#[from] ConfigError),

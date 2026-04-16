@@ -1,8 +1,8 @@
 use std::str::FromStr as _;
 
 use bitcoin::{ScriptBuf, XOnlyPublicKey, secp256k1};
-use clarity::types::chainstate::StacksAddress;
 use clarity::vm::types::PrincipalData;
+use clarity::{types::chainstate::StacksAddress, vm::types::QualifiedContractIdentifier};
 use serde::{Deserialize, Deserializer};
 
 /// A deserializer for the url::Url type. Does not support deserializing a list,
@@ -53,6 +53,23 @@ where
 {
     let literal = <String>::deserialize(des)?;
     PrincipalData::parse(&literal).map_err(serde::de::Error::custom)
+}
+
+/// Parse an optional string into a Stacks QualifiedContractIdentifier.
+pub fn contract_deserializer_option<'de, D>(
+    des: D,
+) -> Result<Option<QualifiedContractIdentifier>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let literal = <Option<String>>::deserialize(des)?.filter(|principal| !principal.is_empty());
+    let Some(principal) = literal else {
+        return Ok(None);
+    };
+
+    QualifiedContractIdentifier::parse(&principal)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
 
 /// Parse the string into a XOnlyPublicKey
