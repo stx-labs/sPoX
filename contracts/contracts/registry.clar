@@ -6,7 +6,6 @@
 ;;
 (define-constant CONTRACT_OWNER tx-sender)
 (define-constant ERR_UNAUTHORIZED (err u100))
-(define-constant ERR_NOT_FOUND (err u101))
 
 ;; data vars
 ;;
@@ -19,7 +18,6 @@
   {
     deposit-script: (buff 196),
     reclaim-script: (buff 2048),
-    owner: principal,
   }
 )
 
@@ -34,7 +32,6 @@
     (map-set deposit-address id {
       deposit-script: deposit-script,
       reclaim-script: reclaim-script,
-      owner: tx-sender,
     })
     (var-set next-address-id (+ id u1))
     (ok id)
@@ -42,7 +39,10 @@
 )
 
 (define-public (remove-addresses (address-ids (list 4000 uint)))
-  (ok (map remove-single-address address-ids))
+  (begin
+    (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_UNAUTHORIZED)
+    (ok (map remove-single-address address-ids))
+  )
 )
 
 ;; read only functions
@@ -61,24 +61,11 @@
 
 (define-private (get-single-address (id uint))
   (match (map-get? deposit-address id)
-    entry (some {
-      id: id,
-      deposit-script: (get deposit-script entry),
-      reclaim-script: (get reclaim-script entry),
-    })
+    entry (some (merge entry { id: id }))
     none
   )
 )
 
 (define-private (remove-single-address (id uint))
-  (match (map-get? deposit-address id)
-    entry (if (or (is-eq tx-sender (get owner entry)) (is-eq tx-sender CONTRACT_OWNER))
-      (begin
-        (map-delete deposit-address id)
-        (ok true)
-      )
-      ERR_UNAUTHORIZED
-    )
-    ERR_NOT_FOUND
-  )
+  (map-delete deposit-address id)
 )

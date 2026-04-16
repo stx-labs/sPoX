@@ -108,7 +108,7 @@ describe("get-addresses", () => {
 });
 
 describe("remove-addresses", () => {
-  it("allows owner to remove their address", () => {
+  it("rejects removal by the registrant", () => {
     simnet.callPublicFn(
       "registry",
       "register-address",
@@ -116,27 +116,13 @@ describe("remove-addresses", () => {
       wallet1,
     );
 
-    const { result: initialResult } = simnet.callReadOnlyFn(
-      "registry",
-      "get-addresses",
-      [Cl.list([Cl.uint(0)])],
-      wallet1,
-    );
-    expect(initialResult).toBeList([Cl.some(
-      Cl.tuple({
-        id: Cl.uint(0),
-        "deposit-script": depositScript,
-        "reclaim-script": reclaimScript,
-      }),
-    )]);
-
     const { result } = simnet.callPublicFn(
       "registry",
       "remove-addresses",
       [Cl.list([Cl.uint(0)])],
       wallet1,
     );
-    expect(result).toBeOk(Cl.list([Cl.ok(Cl.bool(true))]));
+    expect(result).toBeErr(Cl.uint(100));
 
     const { result: getResult } = simnet.callReadOnlyFn(
       "registry",
@@ -144,7 +130,15 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       wallet1,
     );
-    expect(getResult).toBeList([Cl.none()]);
+    expect(getResult).toBeList([
+      Cl.some(
+        Cl.tuple({
+          id: Cl.uint(0),
+          "deposit-script": depositScript,
+          "reclaim-script": reclaimScript,
+        }),
+      ),
+    ]);
   });
 
   it("allows admin (deployer) to remove any address", () => {
@@ -175,7 +169,7 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       deployer,
     );
-    expect(result).toBeOk(Cl.list([Cl.ok(Cl.bool(true))]));
+    expect(result).toBeOk(Cl.list([Cl.bool(true)]));
 
     const { result: getResult } = simnet.callReadOnlyFn(
       "registry",
@@ -214,7 +208,7 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       wallet2,
     );
-    expect(result).toBeOk(Cl.list([Cl.error(Cl.uint(100))]));
+    expect(result).toBeErr(Cl.uint(100));
 
     const { result: getResult } = simnet.callReadOnlyFn(
       "registry",
@@ -233,13 +227,13 @@ describe("remove-addresses", () => {
     ]);
   });
 
-  it("returns not-found error for non-existent ID", () => {
+  it("returns false for non-existent ID", () => {
     const { result } = simnet.callPublicFn(
       "registry",
       "remove-addresses",
       [Cl.list([Cl.uint(999)])],
-      wallet1,
+      deployer,
     );
-    expect(result).toBeOk(Cl.list([Cl.error(Cl.uint(101))]));
+    expect(result).toBeOk(Cl.list([Cl.bool(false)]));
   });
 });

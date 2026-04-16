@@ -66,5 +66,5 @@ plan:
       contract-name: registry
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/registry.clar
-      clarity-version: 4
-    epoch: '3.3'
+      clarity-version: 5
+    epoch: '3.4'
