@@ -69,7 +69,7 @@ pub struct StacksConfig {
     pub rpc_endpoint: Url,
     /// The address of the deployer of the sBTC smart contracts.
     #[serde(deserialize_with = "stacks_address_deserializer")]
-    pub deployer: StacksAddress,
+    pub sbtc_deployer: StacksAddress,
 }
 
 impl Settings {

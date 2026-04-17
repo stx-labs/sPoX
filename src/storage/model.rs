@@ -6,7 +6,7 @@ use sbtc::deposits::{DepositScriptInputs, ReclaimScriptInputs};
 use crate::{config::MonitoredDepositConfig, error::Error};
 
 /// The source for a deposit
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MonitoredDepositSource {
     /// Address is configured in the config file (with this alias)
     Config(String),
@@ -15,7 +15,7 @@ pub enum MonitoredDepositSource {
 }
 
 /// A deposit address to monitor
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MonitoredDeposit {
     /// Monitored deposit source
     pub source: MonitoredDepositSource,

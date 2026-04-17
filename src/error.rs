@@ -15,6 +15,21 @@ pub enum Error {
     #[error("could not create RPC client to {1}: {0}")]
     BitcoinCoreRpcClient(#[source] bitcoincore_rpc::Error, String),
 
+    /// Could not serialize the clarity value to bytes.
+    ///
+    /// For some reason, InterpreterError does not implement
+    /// std::fmt::Display or std::error::Error, hence the debug log.
+    #[error("clarity serialization error: {0:?}")]
+    ClarityValueSerialization(Box<clarity::vm::errors::InterpreterError>),
+
+    /// Could not create a clarity list. This shouldn't happen.
+    #[error("clarity bad list: {0:?}")]
+    ClarityBadList(Box<clarity::vm::errors::Error>),
+
+    /// Missing an expected tuple entry. This shouldn't happen.
+    #[error("missing an expected tuple entry: {0}")]
+    ClarityMissingTupleEntry(&'static str),
+
     /// The pending deposit is expired
     #[error("the pending deposit is expired")]
     DepositExpired,
@@ -78,6 +93,10 @@ pub enum Error {
     /// Could not make a successful request to the stacks API.
     #[error("received a non success status code response from a stacks node: {0}")]
     StacksNodeResponse(#[source] reqwest::Error),
+
+    /// Tried to fetch too many registered addresses in a single call
+    #[error("too many ids to fetch: {0}, max size is {1}")]
+    TooManyAddressIDs(usize, u32),
 
     /// Reqwest error
     #[error("response from stacks node did not conform to the expected schema: {0}")]

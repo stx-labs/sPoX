@@ -53,5 +53,5 @@ rpc_endpoint = "http://127.0.0.1:20443"
 # The address of the deployer of the sBTC smart contracts.
 #
 # Required: true
-# Environment: SPOX_STACKS__DEPLOYER
-deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"
+# Environment: SPOX_STACKS__SBTC_DEPLOYER
+sbtc_deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"

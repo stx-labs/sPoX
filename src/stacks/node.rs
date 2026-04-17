@@ -23,6 +23,23 @@ pub struct DataVarResponse {
     pub data: Value,
 }
 
+/// The request body for a POST /v2/contracts/call-read/<contract-principal>/<contract-name>/<fn-name> request.
+#[derive(Debug, serde::Serialize)]
+pub struct CallReadRequest {
+    /// The simulated address of the sender.
+    pub sender: String,
+    /// The arguments to the function in index-order.
+    pub arguments: Vec<String>,
+}
+
+/// The response from a POST /v2/contracts/call-read/<contract-principal>/<contract-name>/<fn-name> request.
+#[derive(Debug, Deserialize)]
+pub struct CallReadResponse {
+    /// The result of the function call.
+    #[serde(deserialize_with = "clarity_value_deserializer")]
+    pub result: Value,
+}
+
 /// A client for interacting with Stacks nodes and the Stacks API
 #[derive(Debug, Clone)]
 pub struct StacksClient {
@@ -31,13 +48,13 @@ pub struct StacksClient {
     /// The client used to make the request.
     pub client: reqwest::Client,
     /// The address of the deployer of the sBTC smart contracts.
-    pub deployer: StacksAddress,
+    pub sbtc_deployer: StacksAddress,
 }
 
 impl StacksClient {
     /// Create a new instance of the Stacks client using the given
     /// StacksSettings.
-    pub fn new(url: Url, deployer: StacksAddress) -> Result<Self, Error> {
+    pub fn new(url: Url, sbtc_deployer: StacksAddress) -> Result<Self, Error> {
         let client = reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .build()?;
@@ -45,7 +62,7 @@ impl StacksClient {
         Ok(Self {
             endpoint: url,
             client,
-            deployer,
+            sbtc_deployer,
         })
     }
 
@@ -62,7 +79,7 @@ impl StacksClient {
         contract_name: &ContractName,
         var_name: &ClarityName,
     ) -> Result<Value, Error> {
-        let path = format!("/v2/data_var/{contract_principal}/{contract_name}/{var_name}?proof=0",);
+        let path = format!("/v2/data_var/{contract_principal}/{contract_name}/{var_name}?proof=0");
 
         let url = self
             .endpoint
@@ -92,12 +109,69 @@ impl StacksClient {
             .map(|x| x.data)
     }
 
+    /// Calls a read-only public function on a given smart contract.
+    #[tracing::instrument(skip_all)]
+    pub async fn call_read(
+        &self,
+        contract_principal: &StacksAddress,
+        contract_name: &ContractName,
+        fn_name: &ClarityName,
+        sender: &StacksAddress,
+        arguments: &[Value],
+    ) -> Result<Value, Error> {
+        let path = format!(
+            "/v2/contracts/call-read/{contract_principal}/{contract_name}/{fn_name}?tip=latest"
+        );
+
+        let url = self
+            .endpoint
+            .join(&path)
+            .map_err(|err| Error::PathJoin(err, self.endpoint.clone(), Cow::Owned(path)))?;
+
+        // Turns out that serializing clarity values to hex can panic. One
+        // such case happens when the buff-data is too large, more than one
+        // MBs worth. For our uses this should never happen.
+        let arguments = arguments
+            .iter()
+            .map(|value| value.serialize_to_hex().map_err(Box::new))
+            .collect::<Result<Vec<String>, _>>()
+            .map_err(Error::ClarityValueSerialization)?;
+
+        let body = CallReadRequest {
+            sender: sender.to_string(),
+            arguments,
+        };
+
+        tracing::debug!(
+            %contract_principal,
+            %contract_name,
+            %fn_name,
+            "Calling read-only function"
+        );
+
+        let response = self
+            .client
+            .post(url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(Error::StacksNodeRequest)?;
+
+        response
+            .error_for_status()
+            .map_err(Error::StacksNodeResponse)?
+            .json::<CallReadResponse>()
+            .await
+            .map_err(Error::UnexpectedStacksResponse)
+            .map(|x| x.result)
+    }
+
     /// Retrieve the current signers' aggregate key from the `sbtc-registry`
     /// contract.
     pub async fn get_current_signers_aggregate_key(&self) -> Result<Option<XOnlyPublicKey>, Error> {
         let value = self
             .get_data_var(
-                &self.deployer,
+                &self.sbtc_deployer,
                 &ContractName::from("sbtc-registry"),
                 &ClarityName::from("current-aggregate-pubkey"),
             )
@@ -116,7 +190,7 @@ impl TryFrom<&Settings> for StacksClient {
             .clone()
             .ok_or_else(|| Error::MissingStacksConfig)?;
 
-        StacksClient::new(stacks_config.rpc_endpoint, stacks_config.deployer)
+        StacksClient::new(stacks_config.rpc_endpoint, stacks_config.sbtc_deployer)
     }
 }
 
@@ -213,9 +287,9 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
-        let deployer =
+        let sbtc_deployer =
             StacksAddress::from_string("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap();
-        let client = StacksClient::new(client_url, deployer).unwrap();
+        let client = StacksClient::new(client_url, sbtc_deployer).unwrap();
 
         // Make the request to the mock server
         let resp = client.get_current_signers_aggregate_key().await.unwrap();
