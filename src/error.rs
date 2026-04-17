@@ -101,4 +101,8 @@ pub enum Error {
     /// Reqwest error
     #[error("response from stacks node did not conform to the expected schema: {0}")]
     UnexpectedStacksResponse(#[source] reqwest::Error),
+
+    /// Wrong number of addresses returned from the registry
+    #[error("wrong number of addresses returned from the registry: expected {0} items, got {1}")]
+    WrongAddressesLen(usize, usize),
 }

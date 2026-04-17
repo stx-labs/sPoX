@@ -97,9 +97,15 @@ async fn update_from_registry(context: &Context) -> Result<(), Error> {
     }
 
     for start in (last_next_id..registry_next_id).step_by(GET_ADDRESSES_MAX_IDS as usize) {
-        let end = (start + GET_ADDRESSES_MAX_IDS as u64).min(registry_next_id);
+        let end = start
+            .saturating_add(GET_ADDRESSES_MAX_IDS as u64)
+            .min(registry_next_id);
         let ids: Vec<u64> = (start..end).collect();
         let deposit_addresses = registry.get_addresses(&ids).await?;
+
+        if deposit_addresses.len() != ids.len() {
+            return Err(Error::WrongAddressesLen(ids.len(), deposit_addresses.len()));
+        }
 
         for (id, maybe_deposit_address) in ids.iter().zip(deposit_addresses) {
             if let Some(raw_deposit_address) = maybe_deposit_address {
