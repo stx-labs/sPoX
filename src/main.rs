@@ -10,6 +10,7 @@ use spox::context::Context;
 use spox::deposit_monitor::DepositMonitor;
 use spox::error::Error;
 use spox::stacks::node::StacksClient;
+use spox::stacks::registry::GET_ADDRESSES_MAX_IDS;
 use spox::storage::Storage;
 use spox::storage::model::{MonitoredDeposit, MonitoredDepositSource};
 
@@ -82,6 +83,46 @@ async fn fetch_and_create_deposits(
     Ok(())
 }
 
+async fn update_from_registry(context: &Context) -> Result<(), Error> {
+    let Some(registry) = context.registry() else {
+        return Ok(());
+    };
+    let store = context.storage();
+
+    let last_next_id = store.get_last_next_address_id()?;
+    let registry_next_id = registry.get_next_address_id().await?;
+
+    if last_next_id >= registry_next_id {
+        return Ok(());
+    }
+
+    for start in (last_next_id..registry_next_id).step_by(GET_ADDRESSES_MAX_IDS as usize) {
+        let end = (start + GET_ADDRESSES_MAX_IDS as u64).min(registry_next_id);
+        let ids: Vec<u64> = (start..end).collect();
+        let deposit_addresses = registry.get_addresses(&ids).await?;
+
+        for (id, maybe_deposit_address) in ids.iter().zip(deposit_addresses) {
+            if let Some(raw_deposit_address) = maybe_deposit_address {
+                let address_id = raw_deposit_address.id;
+                match raw_deposit_address.try_into() {
+                    Ok(deposit_address) => {
+                        store.add(deposit_address)?;
+                        tracing::info!(address_id, "added new address from registry");
+                    }
+                    Err(error) => tracing::warn!(
+                        %error,
+                        address_id,
+                        "cannot parse deposit address"
+                    ),
+                };
+            }
+            store.set_last_next_address_id(*id + 1)?;
+        }
+    }
+
+    Ok(())
+}
+
 async fn runloop(
     context: Context,
     deposit_monitor: &mut DepositMonitor,
@@ -115,6 +156,13 @@ async fn runloop(
         }
 
         tracing::debug!(%chain_tip, "new block; processing pending deposits");
+
+        let _ = update_from_registry(&context).await.inspect_err(|error| {
+            tracing::warn!(
+                %error,
+                "error updating from address registry"
+            )
+        });
 
         let _ = fetch_and_create_deposits(&context, deposit_monitor, &chain_tip)
             .await
@@ -191,6 +239,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for monitored_deposit in monitored {
         store.add(monitored_deposit)?;
     }
+
+    let _ = update_from_registry(&context).await.inspect_err(|error| {
+        tracing::warn!(
+            %error,
+            "error updating from address registry"
+        )
+    });
 
     let mut deposit_monitor = DepositMonitor::new(context.clone());
 
