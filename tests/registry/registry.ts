@@ -6,12 +6,12 @@ import {
   ClarityVersion,
   makeContractCall,
 } from "@stacks/transactions";
-import { network } from "./common";
+import { network } from "../common";
 import { bufferFromHex } from "@stacks/transactions/dist/cl";
 
 const REGISTRY_CLAR_PATH = path.resolve(
   import.meta.dirname,
-  "../contracts/contracts/registry.clar",
+  "../../contracts/contracts/registry.clar",
 );
 
 // This is the `deployer` account in sBTC devenv

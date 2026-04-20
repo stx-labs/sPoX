@@ -106,12 +106,12 @@ This will look for deposits made to the signers pubkey with the devenv default v
 
 Deploy the smart contract (will deploy at `ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039.registry`)
 ```bash
-(cd tests && pnpm exec tsx registry.ts deploy)
+(cd tests && pnpm exec tsx registry/registry.ts deploy)
 ```
 
 Run spox (the registry is specified in the configuration file):
 ```bash
-cargo run -- -c tests/solo/spox-no-address.toml
+cargo run -- -c tests/registry/spox.toml
 ```
 
 Register an address on the registry:
@@ -121,13 +121,13 @@ Register an address on the registry:
 # or generate your deposit and reclaim scripts in any other way
 export SPOX_DEMO_SIGNERS_XONLY=1cbc44709f590f939f52a831546169363e6403e96e1605b2e1996edb99029ffc
 
-(cd tests && pnpm exec tsx registry.ts add 1e0000000000001388051ab2bee17296a2786cb248e3230b82ae31721bbe5c7520${SPOX_DEMO_SIGNERS_XONLY}ac 0114b275206c44dfe47941b0271c642c549d9a763afce7c6b0495c72f1a32c2f09898ea3dfac)
+(cd tests && pnpm exec tsx registry/registry.ts add 1e0000000000001388051ab2bee17296a2786cb248e3230b82ae31721bbe5c7520${SPOX_DEMO_SIGNERS_XONLY}ac 0114b275206c44dfe47941b0271c642c549d9a763afce7c6b0495c72f1a32c2f09898ea3dfac)
 ```
 After a bit, `spox` should log about the new address.
 
 Get the Bitcoin address for the registered address:
 ```bash
-cargo run -- -c tests/solo/spox-no-address.toml get-registry-address 0 -n regtest
+cargo run -- -c tests/registry/spox.toml get-registry-address 0 -n regtest
 ```
 
 Finally, send a payment to the above address (e.g.):
