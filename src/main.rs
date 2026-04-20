@@ -7,9 +7,11 @@ use emily_client::apis::deposit_api;
 use spox::bitcoin::BlockRef;
 use spox::config::Settings;
 use spox::context::Context;
-use spox::deposit_monitor::{DepositMonitor, MonitoredDeposit};
+use spox::deposit_monitor::DepositMonitor;
 use spox::error::Error;
 use spox::stacks::node::StacksClient;
+use spox::storage::Storage;
+use spox::storage::model::{MonitoredDeposit, MonitoredDepositSource};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum LogOutputFormat {
@@ -146,7 +148,10 @@ async fn get_deposit_address(
 ) -> Result<(), Box<dyn std::error::Error>> {
     for deposit in monitored {
         let address = Address::from_script(&deposit.to_script_pubkey(), args.network)?;
-        println!("{}: {}", deposit.alias, address);
+        match &deposit.source {
+            MonitoredDepositSource::Config(alias) => println!("{alias}: {address}"),
+            MonitoredDepositSource::Registry(id) => println!("id={id}: {address}"),
+        }
     }
     Ok(())
 }
@@ -182,7 +187,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let context = Context::try_from(&config)?;
 
-    let mut deposit_monitor = DepositMonitor::new(context.clone(), monitored);
+    let store = context.storage();
+    for monitored_deposit in monitored {
+        store.add(monitored_deposit)?;
+    }
+
+    let mut deposit_monitor = DepositMonitor::new(context.clone());
 
     runloop(context, &mut deposit_monitor, config.polling_interval).await;
 

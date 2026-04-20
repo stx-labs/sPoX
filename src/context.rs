@@ -7,12 +7,15 @@ use emily_client::apis::configuration::Configuration as EmilyConfig;
 use crate::bitcoin::node::BitcoinCoreClient;
 use crate::config::Settings;
 use crate::error::Error;
+use crate::storage::memory::{SharedStore, Store};
 
 /// Application context
 #[derive(Clone)]
 pub struct Context {
     bitcoin_client: BitcoinCoreClient,
     emily_config: Arc<EmilyConfig>,
+    storage: SharedStore,
+    settings: Arc<Settings>,
 }
 
 impl TryFrom<&Settings> for Context {
@@ -32,6 +35,8 @@ impl TryFrom<&Settings> for Context {
         Ok(Self {
             bitcoin_client,
             emily_config: Arc::new(emily_config),
+            storage: Store::new_shared(),
+            settings: Arc::new(value.clone()),
         })
     }
 }
@@ -45,5 +50,15 @@ impl Context {
     /// Get a reference to the Emily config
     pub fn emily_config(&self) -> &EmilyConfig {
         &self.emily_config
+    }
+
+    /// Get a reference to the storage
+    pub fn storage(&self) -> SharedStore {
+        self.storage.clone()
+    }
+
+    /// Get a reference to the config
+    pub fn settings(&self) -> &Settings {
+        &self.settings
     }
 }
