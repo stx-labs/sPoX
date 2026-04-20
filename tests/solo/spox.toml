@@ -3,7 +3,7 @@ bitcoin_rpc_endpoint = "http://devnet:devnet@127.0.0.1:18443"
 
 [stacks]
 rpc_endpoint = "http://127.0.0.1:20443"
-deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"
+sbtc_deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"
 
 [deposit.alice]
 signers_xonly = "0000000000000000000000000000000000000000000000000000000000000001"
