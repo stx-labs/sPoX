@@ -79,7 +79,7 @@ confirmed, it will notify Emily about it so that the sBTC signers can process it
 
 ## Demo
 
-The demo use the sBTC devenv.
+The demo uses the sBTC devenv.
 
 To get the devenv ready, use:
 ```bash

@@ -59,7 +59,7 @@ pub enum Error {
     NoChainTip,
 
     /// No signers aggregate key configured in the sBTC registry
-    #[error("no signers aggregate key configured in the sbtc registry")]
+    #[error("no signers aggregate key configured in the sBTC registry")]
     NoSignersAggregateKey,
 
     /// Missing monitored deposit address for scriptPubKey
