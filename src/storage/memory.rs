@@ -16,7 +16,7 @@ use crate::{
 pub type SharedStore = Arc<Mutex<Store>>;
 
 /// In-memory store
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Store {
     last_next_address_id: u64,
     monitored: HashMap<ScriptBuf, MonitoredDeposit>,
