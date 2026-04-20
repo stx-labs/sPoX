@@ -17,15 +17,22 @@ use crate::storage::model::{MonitoredDeposit, MonitoredDepositSource};
 /// Maximum number of registered addresses that can be fetched in a single call
 pub const GET_ADDRESSES_MAX_IDS: u32 = 400;
 
-/// A raw deposit address registered in the registry. The input scripts may be invalid.
+/// A raw deposit address scripts. The scripts may be invalid deposit scripts.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RawRegisteredDeposit {
-    /// Registered deposit ID
-    pub id: u64,
+pub struct RawRegisteredDepositScripts {
     /// Deposit script bytes
     pub deposit_script: Vec<u8>,
     /// Reclaim script bytes
     pub reclaim_script: Vec<u8>,
+}
+
+/// A raw deposit address from the registry. The input scripts may be invalid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawRegisteredDeposit {
+    /// Registered deposit ID
+    pub id: u64,
+    /// Deposit scripts, if the ID is registered
+    pub address: Option<RawRegisteredDepositScripts>,
 }
 
 /// Client for querying the on-chain deposit address registry contract.
@@ -73,10 +80,7 @@ impl DepositAddressRegistry {
     }
 
     /// Get the registered addresses from the registry for the given IDs
-    pub async fn get_addresses(
-        &self,
-        ids: &[u64],
-    ) -> Result<Vec<Option<RawRegisteredDeposit>>, Error> {
+    pub async fn get_addresses(&self, ids: &[u64]) -> Result<Vec<RawRegisteredDeposit>, Error> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -116,23 +120,22 @@ impl DepositAddressRegistry {
             return Err(Error::InvalidStacksResponse("did not get a list"));
         };
 
-        let mut addresses = Vec::new();
+        data.into_iter()
+            .map(RawRegisteredDeposit::try_from)
+            .collect()
+    }
+}
 
-        for value in data {
-            let Value::Optional(OptionalData { data }) = value else {
-                return Err(Error::InvalidStacksResponse(
-                    "did not get a list of options",
-                ));
-            };
+impl TryFrom<Value> for RawRegisteredDepositScripts {
+    type Error = Error;
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let Value::Tuple(TupleData { mut data_map, .. }) = value else {
+            return Err(Error::InvalidStacksResponse("did not get an address tuple"));
+        };
 
-            let entry = match data {
-                Some(entry) => Some(RawRegisteredDeposit::try_from(*entry)?),
-                None => None,
-            };
-            addresses.push(entry);
-        }
-
-        Ok(addresses)
+        let deposit_script = tuple_remove_buff(&mut data_map, "deposit-script")?;
+        let reclaim_script = tuple_remove_buff(&mut data_map, "reclaim-script")?;
+        Ok(RawRegisteredDepositScripts { deposit_script, reclaim_script })
     }
 }
 
@@ -144,13 +147,13 @@ impl TryFrom<Value> for RawRegisteredDeposit {
         };
 
         let id = tuple_remove_uint(&mut data_map, "id")?;
-        let deposit_script = tuple_remove_buff(&mut data_map, "deposit-script")?;
-        let reclaim_script = tuple_remove_buff(&mut data_map, "reclaim-script")?;
+        let address = tuple_remove_option(&mut data_map, "address")?
+            .map(|value| RawRegisteredDepositScripts::try_from(*value))
+            .transpose()?;
 
         Ok(RawRegisteredDeposit {
             id: u64::try_from(id).map_err(|_| Error::InvalidStacksResponse("uint is too large"))?,
-            deposit_script,
-            reclaim_script,
+            address,
         })
     }
 }
@@ -158,10 +161,14 @@ impl TryFrom<Value> for RawRegisteredDeposit {
 impl TryFrom<RawRegisteredDeposit> for MonitoredDeposit {
     type Error = Error;
     fn try_from(deposit: RawRegisteredDeposit) -> Result<Self, Self::Error> {
+        let Some(address) = deposit.address else {
+            return Err(Error::MissingAddressScripts);
+        };
+
         let deposit_script_inputs =
-            DepositScriptInputs::parse(&ScriptBuf::from_bytes(deposit.deposit_script))?;
+            DepositScriptInputs::parse(&ScriptBuf::from_bytes(address.deposit_script))?;
         let reclaim_script_inputs =
-            ReclaimScriptInputs::parse(&ScriptBuf::from_bytes(deposit.reclaim_script))?;
+            ReclaimScriptInputs::parse(&ScriptBuf::from_bytes(address.reclaim_script))?;
 
         Ok(MonitoredDeposit {
             source: MonitoredDepositSource::Registry(deposit.id),
@@ -181,6 +188,16 @@ fn tuple_remove_uint(
     }
 }
 
+fn tuple_remove_option(
+    data_map: &mut BTreeMap<ClarityName, Value>,
+    field: &'static str,
+) -> Result<Option<Box<Value>>, Error> {
+    match data_map.remove(field) {
+        Some(Value::Optional(OptionalData { data })) => Ok(data),
+        _ => Err(Error::ClarityMissingTupleEntry(field)),
+    }
+}
+
 fn tuple_remove_buff(
     data_map: &mut BTreeMap<ClarityName, Value>,
     field: &'static str,
@@ -195,12 +212,42 @@ fn tuple_remove_buff(
 mod tests {
     use bitcoin::{NetworkKind, PrivateKey, PublicKey, secp256k1::SECP256K1};
     use bitcoincore_rpc::jsonrpc::serde_json;
-    use clarity::{
-        types::StacksEpochId,
-        vm::types::{PrincipalData, TypeSignature},
-    };
+    use clarity::{types::StacksEpochId, vm::types::PrincipalData};
 
     use super::*;
+
+    impl From<&RawRegisteredDepositScripts> for Value {
+        fn from(value: &RawRegisteredDepositScripts) -> Self {
+            let tuple_entries = vec![
+                (
+                    ClarityName::from("deposit-script"),
+                    Value::buff_from(value.deposit_script.clone()).unwrap(),
+                ),
+                (
+                    ClarityName::from("reclaim-script"),
+                    Value::buff_from(value.reclaim_script.clone()).unwrap(),
+                ),
+            ];
+            Value::Tuple(TupleData::from_data(tuple_entries).unwrap())
+        }
+    }
+
+    impl From<&RawRegisteredDeposit> for Value {
+        fn from(value: &RawRegisteredDeposit) -> Self {
+            let address = value
+                .address
+                .as_ref()
+                .map(|scripts| Box::new(scripts.into()));
+            let tuple_entries = vec![
+                (ClarityName::from("id"), Value::UInt(value.id as u128)),
+                (
+                    ClarityName::from("address"),
+                    Value::Optional(OptionalData { data: address }),
+                ),
+            ];
+            Value::Tuple(TupleData::from_data(tuple_entries).unwrap())
+        }
+    }
 
     #[tokio::test]
     async fn get_next_address_id_works() {
@@ -262,40 +309,33 @@ mod tests {
             .unwrap(),
         };
 
-        let raw_deposit = RawRegisteredDeposit {
+        let raw_deposit_1 = RawRegisteredDeposit {
             id: 123,
-            deposit_script: deposit.deposit_script_inputs.deposit_script().to_bytes(),
-            reclaim_script: deposit.reclaim_script_inputs.reclaim_script().to_bytes(),
+            address: Some(RawRegisteredDepositScripts {
+                deposit_script: deposit.deposit_script_inputs.deposit_script().to_bytes(),
+                reclaim_script: deposit.reclaim_script_inputs.reclaim_script().to_bytes(),
+            }),
         };
+        let raw_deposit_2 = RawRegisteredDeposit { id: 124, address: None };
 
-        let tuple_entries = vec![
-            (ClarityName::from("id"), Value::UInt(raw_deposit.id as u128)),
-            (
-                ClarityName::from("deposit-script"),
-                Value::buff_from(raw_deposit.deposit_script.clone()).unwrap(),
-            ),
-            (
-                ClarityName::from("reclaim-script"),
-                Value::buff_from(raw_deposit.reclaim_script.clone()).unwrap(),
-            ),
-        ];
-        let tuple_data = TupleData::from_data(tuple_entries).unwrap();
+        let clarity_deposit_1: Value = (&raw_deposit_1).into();
+        let clarity_deposit_2: Value = (&raw_deposit_2).into();
 
         let list_type = ListTypeData::new_list(
-            TypeSignature::new_option(clarity::vm::types::TypeSignature::TupleType(
-                tuple_data.type_signature.clone(),
-            ))
-            .unwrap(),
+            clarity::vm::types::TypeSignature::TupleType(
+                clarity_deposit_1
+                    .clone()
+                    .expect_tuple()
+                    .unwrap()
+                    .type_signature,
+            ),
             GET_ADDRESSES_MAX_IDS,
         )
         .unwrap();
 
         let clarity_value = Value::list_with_type(
             &StacksEpochId::latest(),
-            vec![
-                Value::some(Value::Tuple(tuple_data)).unwrap(),
-                Value::none(),
-            ],
+            vec![clarity_deposit_1, clarity_deposit_2],
             list_type,
         )
         .unwrap();
@@ -305,7 +345,7 @@ mod tests {
             clarity_value.serialize_to_hex().unwrap(),
         );
 
-        let request_ids = vec![raw_deposit.id, raw_deposit.id + 1];
+        let request_ids = vec![raw_deposit_1.id, raw_deposit_2.id];
 
         // Setup our mock server
         let mut stacks_node_server = mockito::Server::new_async().await;
@@ -349,16 +389,14 @@ mod tests {
         let result = registry.get_addresses(&request_ids).await.unwrap();
 
         // Assert that the response is what we expect
-        assert_eq!(result, vec![Some(raw_deposit), None]);
+        assert_eq!(result, vec![raw_deposit_1, raw_deposit_2]);
+        let [result_1, result_2] = result.try_into().unwrap();
 
-        let parsed_result = result
-            .into_iter()
-            .flatten()
-            .map(MonitoredDeposit::try_from)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        assert_eq!(parsed_result, vec![deposit]);
+        assert_eq!(MonitoredDeposit::try_from(result_1).unwrap(), deposit);
+        assert!(matches!(
+            MonitoredDeposit::try_from(result_2),
+            Err(Error::MissingAddressScripts)
+        ));
 
         mock.assert();
     }

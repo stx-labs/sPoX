@@ -30,6 +30,10 @@ pub enum Error {
     #[error("missing an expected tuple entry: {0}")]
     ClarityMissingTupleEntry(&'static str),
 
+    /// The raw deposit is missing the address scripts
+    #[error("the raw deposit is missing the address scripts")]
+    MissingAddressScripts,
+
     /// The pending deposit is expired
     #[error("the pending deposit is expired")]
     DepositExpired,
@@ -102,7 +106,7 @@ pub enum Error {
     #[error("response from stacks node did not conform to the expected schema: {0}")]
     UnexpectedStacksResponse(#[source] reqwest::Error),
 
-    /// Wrong number of addresses returned from the registry
-    #[error("wrong number of addresses returned from the registry: expected {0} items, got {1}")]
-    WrongAddressesLen(usize, usize),
+    /// Registry returned ids that do not match the requested ids
+    #[error("registry returned ids that do not match the requested ids")]
+    MismatchingRawAddressIds,
 }

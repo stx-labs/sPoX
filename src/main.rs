@@ -96,6 +96,7 @@ async fn update_from_registry(context: &Context) -> Result<(), Error> {
         return Ok(());
     }
 
+    // TODO: limit the amount of work per single function invocation
     for start in (last_next_id..registry_next_id).step_by(GET_ADDRESSES_MAX_IDS as usize) {
         let end = start
             .saturating_add(GET_ADDRESSES_MAX_IDS as u64)
@@ -103,26 +104,28 @@ async fn update_from_registry(context: &Context) -> Result<(), Error> {
         let ids: Vec<u64> = (start..end).collect();
         let deposit_addresses = registry.get_addresses(&ids).await?;
 
-        if deposit_addresses.len() != ids.len() {
-            return Err(Error::WrongAddressesLen(ids.len(), deposit_addresses.len()));
+        let deposit_addresses_ids: Vec<u64> = deposit_addresses.iter().map(|v| v.id).collect();
+        if ids != deposit_addresses_ids {
+            return Err(Error::MismatchingRawAddressIds);
         }
 
-        for (id, maybe_deposit_address) in ids.iter().zip(deposit_addresses) {
-            if let Some(raw_deposit_address) = maybe_deposit_address {
-                let address_id = raw_deposit_address.id;
-                match raw_deposit_address.try_into() {
-                    Ok(deposit_address) => {
-                        store.add(deposit_address)?;
-                        tracing::info!(address_id, "added new address from registry");
-                    }
-                    Err(error) => tracing::warn!(
-                        %error,
-                        address_id,
-                        "cannot parse deposit address"
-                    ),
-                };
-            }
-            store.set_last_next_address_id(*id + 1)?;
+        for raw_deposit_address in deposit_addresses {
+            let address_id = raw_deposit_address.id;
+            match raw_deposit_address.try_into() {
+                Ok(deposit_address) => {
+                    store.add(deposit_address)?;
+                    tracing::info!(address_id, "added new address from registry");
+                }
+                Err(Error::MissingAddressScripts) => {
+                    tracing::debug!(address_id, "skipping empty address id");
+                }
+                Err(error) => tracing::warn!(
+                    %error,
+                    address_id,
+                    "cannot parse deposit address"
+                ),
+            };
+            store.set_last_next_address_id(address_id.saturating_add(1))?;
         }
     }
 
@@ -135,10 +138,13 @@ async fn runloop(
     polling_interval: Duration,
 ) {
     let bitcoin_client = context.bitcoin_client();
+    let mut first_poll = true;
     let mut last_chain_tip = None;
 
     loop {
-        if last_chain_tip.is_some() {
+        if first_poll {
+            first_poll = false;
+        } else {
             tokio::time::sleep(polling_interval).await;
         }
 
@@ -252,13 +258,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for monitored_deposit in monitored {
         store.add(monitored_deposit)?;
     }
-
-    let _ = update_from_registry(&context).await.inspect_err(|error| {
-        tracing::warn!(
-            %error,
-            "error updating from address registry"
-        )
-    });
 
     let mut deposit_monitor = DepositMonitor::new(context.clone());
 
