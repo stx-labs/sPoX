@@ -58,8 +58,8 @@ pub enum Error {
     #[error("no bitcoin chain tip")]
     NoChainTip,
 
-    /// No signers aggregate key configured in the registry
-    #[error("no signers aggregate key configured in the registry")]
+    /// No signers aggregate key configured in the sBTC registry
+    #[error("no signers aggregate key configured in the sbtc registry")]
     NoSignersAggregateKey,
 
     /// Missing monitored deposit address for scriptPubKey
@@ -69,6 +69,10 @@ pub enum Error {
     /// Missing stacks configuration
     #[error("missing stacks configuration")]
     MissingStacksConfig,
+
+    /// No registry contract configured
+    #[error("no registry contract configured")]
+    NoRegistryConfigured,
 
     /// Could not parse the path part of a URL
     #[error("failed to construct a valid URL from {1} and {2}: {0}")]

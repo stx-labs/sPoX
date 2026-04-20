@@ -26,10 +26,19 @@ struct GetDepositAddressArgs {
     pub network: bitcoin::Network,
 }
 
+#[derive(Debug, Clone, Parser)]
+struct GetRegistryAddressArgs {
+    #[clap(short = 'n', long = "network", default_value = "bitcoin")]
+    pub network: bitcoin::Network,
+    pub id: u64,
+}
+
 #[derive(Debug, Subcommand)]
+#[allow(clippy::enum_variant_names)]
 enum CliCommand {
     GetSignersXonlyKey,
     GetDepositAddress(GetDepositAddressArgs),
+    GetRegistryAddress(GetRegistryAddressArgs),
 }
 
 /// Command line arguments
@@ -223,6 +232,25 @@ async fn get_deposit_address(
     Ok(())
 }
 
+async fn get_registry_address(
+    context: &Context,
+    args: &GetRegistryAddressArgs,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let raw_address = context
+        .registry()
+        .ok_or(Error::NoRegistryConfigured)?
+        .get_addresses(&[args.id])
+        .await?
+        .into_iter()
+        .next()
+        .ok_or(Error::MismatchingRawAddressIds)?;
+
+    let deposit: MonitoredDeposit = raw_address.try_into()?;
+    let address = Address::from_script(&deposit.to_script_pubkey(), args.network)?;
+    println!("{address}");
+    Ok(())
+}
+
 #[tokio::main]
 #[tracing::instrument(name = "spox")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -244,15 +272,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(TryInto::try_into)
         .collect::<Result<Vec<_>, Error>>()?;
 
+    let context = Context::try_from(&config)?;
+
     match args.command {
         Some(CliCommand::GetSignersXonlyKey) => return get_signers_xonly_key(&config).await,
         Some(CliCommand::GetDepositAddress(args)) => {
             return get_deposit_address(&monitored, &args).await;
         }
+        Some(CliCommand::GetRegistryAddress(args)) => {
+            return get_registry_address(&context, &args).await;
+        }
         None => (),
     }
-
-    let context = Context::try_from(&config)?;
 
     let store = context.storage();
     for monitored_deposit in monitored {
