@@ -185,8 +185,15 @@ async fn runloop(
 
 async fn get_signers_xonly_key(config: &Settings) -> Result<(), Box<dyn std::error::Error>> {
     let stacks_client = StacksClient::try_from(config)?;
+    let sbtc_deployer = &config
+        .stacks
+        .as_ref()
+        .ok_or_else(|| Error::MissingStacksConfig)?
+        .sbtc_deployer;
 
-    let signers_aggregate_key = stacks_client.get_current_signers_aggregate_key().await?;
+    let signers_aggregate_key = stacks_client
+        .get_current_signers_aggregate_key(sbtc_deployer)
+        .await?;
 
     match signers_aggregate_key {
         Some(public_key) => println!("{public_key}"),

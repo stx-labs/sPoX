@@ -47,23 +47,17 @@ pub struct StacksClient {
     pub endpoint: Url,
     /// The client used to make the request.
     pub client: reqwest::Client,
-    /// The address of the deployer of the sBTC smart contracts.
-    pub sbtc_deployer: StacksAddress,
 }
 
 impl StacksClient {
     /// Create a new instance of the Stacks client using the given
     /// StacksSettings.
-    pub fn new(url: Url, sbtc_deployer: StacksAddress) -> Result<Self, Error> {
+    pub fn new(url: Url) -> Result<Self, Error> {
         let client = reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .build()?;
 
-        Ok(Self {
-            endpoint: url,
-            client,
-            sbtc_deployer,
-        })
+        Ok(Self { endpoint: url, client })
     }
 
     /// Retrieve the latest value of a data variable from the specified contract.
@@ -168,10 +162,13 @@ impl StacksClient {
 
     /// Retrieve the current signers' aggregate key from the `sbtc-registry`
     /// contract.
-    pub async fn get_current_signers_aggregate_key(&self) -> Result<Option<XOnlyPublicKey>, Error> {
+    pub async fn get_current_signers_aggregate_key(
+        &self,
+        sbtc_deployer: &StacksAddress,
+    ) -> Result<Option<XOnlyPublicKey>, Error> {
         let value = self
             .get_data_var(
-                &self.sbtc_deployer,
+                sbtc_deployer,
                 &ContractName::from("sbtc-registry"),
                 &ClarityName::from("current-aggregate-pubkey"),
             )
@@ -187,10 +184,10 @@ impl TryFrom<&Settings> for StacksClient {
     fn try_from(value: &Settings) -> Result<Self, Self::Error> {
         let stacks_config = value
             .stacks
-            .clone()
+            .as_ref()
             .ok_or_else(|| Error::MissingStacksConfig)?;
 
-        StacksClient::new(stacks_config.rpc_endpoint, stacks_config.sbtc_deployer)
+        StacksClient::new(stacks_config.rpc_endpoint.clone())
     }
 }
 
@@ -287,12 +284,16 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
+        let client = StacksClient::new(client_url).unwrap();
+
         let sbtc_deployer =
             StacksAddress::from_string("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap();
-        let client = StacksClient::new(client_url, sbtc_deployer).unwrap();
 
         // Make the request to the mock server
-        let resp = client.get_current_signers_aggregate_key().await.unwrap();
+        let resp = client
+            .get_current_signers_aggregate_key(&sbtc_deployer)
+            .await
+            .unwrap();
 
         // Assert that the response is what we expect
         assert_eq!(resp, expected);

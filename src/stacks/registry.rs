@@ -196,7 +196,7 @@ mod tests {
     use bitcoin::{NetworkKind, PrivateKey, PublicKey, secp256k1::SECP256K1};
     use bitcoincore_rpc::jsonrpc::serde_json;
     use clarity::{
-        types::{Address as _, StacksEpochId},
+        types::StacksEpochId,
         vm::types::{PrincipalData, TypeSignature},
     };
 
@@ -224,9 +224,7 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
-        let sbtc_deployer =
-            StacksAddress::from_string("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap();
-        let client = StacksClient::new(client_url, sbtc_deployer).unwrap();
+        let client = StacksClient::new(client_url).unwrap();
 
         // Setup our registry
         let registry = DepositAddressRegistry::new(
@@ -336,9 +334,7 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
-        let sbtc_deployer =
-            StacksAddress::from_string("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap();
-        let client = StacksClient::new(client_url, sbtc_deployer).unwrap();
+        let client = StacksClient::new(client_url).unwrap();
 
         // Setup our registry
         let registry = DepositAddressRegistry::new(
