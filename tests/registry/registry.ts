@@ -19,6 +19,15 @@ const REGISTRY_CLAR_PATH = path.resolve(
 const DEPLOYER_KEY =
   "27e27a9c242bcf79784bb8b19c8d875e23aaf65c132d54a47c84e1a5a67bc62601";
 
+async function broadcast(transaction: any) {
+  const res = await broadcastTransaction({ transaction, network });
+  if ("error" in res) {
+    console.error("broadcast rejected:", res);
+    process.exit(1);
+  }
+  console.log("txid:", res.txid);
+}
+
 async function deploy() {
   const tx = await makeContractDeploy({
     contractName: "registry",
@@ -27,8 +36,7 @@ async function deploy() {
     network,
     clarityVersion: ClarityVersion.Clarity5,
   });
-  const res = await broadcastTransaction({ transaction: tx, network });
-  console.log("txid:", res.txid);
+  await broadcast(tx);
 }
 
 async function add(deposit_hex: string | undefined, reclaim_hex: string | undefined) {
@@ -45,8 +53,7 @@ async function add(deposit_hex: string | undefined, reclaim_hex: string | undefi
     functionName: "register-address",
     functionArgs: [bufferFromHex(deposit_hex), bufferFromHex(reclaim_hex)]
   });
-  const res = await broadcastTransaction({ transaction: tx, network });
-  console.log("txid:", res.txid);
+  await broadcast(tx);
 }
 
 async function main() {
