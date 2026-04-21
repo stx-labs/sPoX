@@ -1,2 +1,6 @@
 packages:
   - 'contracts'
+  - 'tests'
+  - 'webapp'
+
+minimumReleaseAge: 1440 # 24 hours

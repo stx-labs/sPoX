@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sand-50: #fafaf9;
+  --color-sand-100: #f5f5f4;
+  --color-sand-200: #e7e5e4;
+  --color-sand-300: #d5d3d1;
+  --color-sand-400: #a8a29e;
+  --color-sand-500: #78716c;
+  --color-sand-600: #44403c;
+  --color-sand-700: #2c2a28;
+  --color-sand-800: #1c1b1a;
+  --color-sand-900: #141313;
+  --color-sand-950: #0a0a0b;
+  --color-accent-orange: #ff9835;
+  --color-accent-coral: #fc6432;
+  --color-accent-amber: #f59e0b;
+  --color-success: #34d399;
+  --color-error: #f87171;
+  --color-warning: #fbbf24;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "Fira Code", ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--color-sand-950);
+  color: var(--color-sand-50);
+  min-height: 100vh;
+}
+
+/* Animated gradient background */
+.bg-grid {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -20%, rgba(255, 152, 53, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(252, 100, 50, 0.05), transparent);
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(28, 27, 26, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(68, 64, 60, 0.5);
+  border-radius: 1rem;
+}
+
+/* Input field */
+.input-field {
+  @apply w-full rounded-xl px-4 py-3 text-sand-50 text-sm transition-all duration-200;
+  background: rgba(20, 19, 19, 0.8);
+  border: 1px solid rgba(68, 64, 60, 0.5);
+}
+.input-field::placeholder {
+  color: rgba(120, 113, 108, 0.7);
+}
+.input-field:focus {
+  outline: none;
+  border-color: rgba(255, 152, 53, 0.4);
+  box-shadow: 0 0 0 3px rgba(255, 152, 53, 0.08);
+}
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.input-field:read-only {
+  cursor: default;
+}
+.input-field:read-only:focus {
+  border-color: rgba(68, 64, 60, 0.5);
+  box-shadow: none;
+}
+
+/* Primary button glow */
+.btn-primary {
+  @apply w-full py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer;
+  background: linear-gradient(135deg, var(--color-accent-orange), var(--color-accent-coral));
+  color: white;
+  box-shadow: 0 4px 24px -4px rgba(252, 100, 50, 0.35);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 32px -2px rgba(252, 100, 50, 0.5);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary / outline button */
+.btn-secondary {
+  @apply px-4 py-3 text-sm rounded-xl transition-all duration-200 cursor-pointer;
+  background: transparent;
+  border: 1px solid rgba(68, 64, 60, 0.5);
+  color: var(--color-sand-300);
+}
+.btn-secondary:hover {
+  background: rgba(44, 42, 40, 0.5);
+  border-color: rgba(68, 64, 60, 0.8);
+}
+
+/* Register CTA */
+.btn-register {
+  @apply w-full py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer;
+  background: linear-gradient(135deg, rgba(255, 152, 53, 0.12), rgba(252, 100, 50, 0.12));
+  border: 1px solid rgba(255, 152, 53, 0.25);
+  color: var(--color-accent-orange);
+}
+.btn-register:hover {
+  background: linear-gradient(135deg, rgba(255, 152, 53, 0.2), rgba(252, 100, 50, 0.2));
+  border-color: rgba(255, 152, 53, 0.4);
+  box-shadow: 0 4px 24px -4px rgba(255, 152, 53, 0.15);
+}
+
+/* Toggle pill */
+.toggle-pill {
+  @apply px-3.5 py-1.5 text-sm rounded-lg transition-all duration-200 cursor-pointer;
+  border: 1px solid transparent;
+  color: var(--color-sand-400);
+}
+.toggle-pill:hover:not(.toggle-active) {
+  color: var(--color-sand-300);
+  background: rgba(44, 42, 40, 0.4);
+}
+.toggle-active {
+  background: rgba(255, 152, 53, 0.1);
+  border-color: rgba(255, 152, 53, 0.25);
+  color: var(--color-accent-orange);
+}
+
+/* Status badges */
+.badge-error {
+  @apply text-sm rounded-xl px-4 py-2.5;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  color: var(--color-error);
+}
+.badge-success {
+  @apply text-sm rounded-xl px-4 py-2.5;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.15);
+  color: var(--color-success);
+}
+.badge-warning {
+  @apply text-sm rounded-xl px-4 py-2.5;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  color: var(--color-warning);
+}
+
+/* Deposit address highlight */
+.address-highlight {
+  @apply text-sm font-mono break-all rounded-xl px-4 py-3;
+  background: rgba(255, 152, 53, 0.06);
+  border: 1px solid rgba(255, 152, 53, 0.15);
+  color: var(--color-accent-orange);
+}
+
+/* Network badge */
+.network-badge {
+  @apply text-[10px] font-semibold tracking-widest uppercase px-2 py-0.5 rounded-md;
+  background: rgba(255, 152, 53, 0.1);
+  border: 1px solid rgba(255, 152, 53, 0.2);
+  color: var(--color-accent-orange);
+}
+
+/* Derivation card */
+.derivation-card {
+  @apply w-full rounded-xl px-4 py-3;
+  background: rgba(20, 19, 19, 0.6);
+  border: 1px solid rgba(68, 64, 60, 0.3);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(68, 64, 60, 0.5);
+  border-radius: 3px;
+}
+
+/* Loading spinner */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 1.5s linear infinite;
+}
