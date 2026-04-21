@@ -120,6 +120,30 @@ describe("validateDepositInputs", () => {
         ),
       ).toMatch(/Reclaim script hex is required/);
     });
+
+    it("rejects non-hex characters", () => {
+      expect(
+        validateDepositInputs(
+          baseline({ reclaimMode: "script", reclaimScriptHex: "75zz" }),
+        ),
+      ).toMatch(/valid hex/);
+    });
+
+    it("rejects odd-length hex", () => {
+      expect(
+        validateDepositInputs(
+          baseline({ reclaimMode: "script", reclaimScriptHex: "755" }),
+        ),
+      ).toMatch(/even number/);
+    });
+
+    it("tolerates a leading 0x prefix", () => {
+      expect(
+        validateDepositInputs(
+          baseline({ reclaimMode: "script", reclaimScriptHex: "0x7551" }),
+        ),
+      ).toBeNull();
+    });
   });
 
   describe("numeric bounds", () => {

@@ -2,14 +2,23 @@ import type { ReactNode } from "react";
 
 export function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  /**
+   * Element id of the control this field labels. Required for screen readers
+   * to link the label to the underlying input/textarea.
+   */
+  htmlFor: string;
   children: ReactNode;
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-sand-400 mb-2 uppercase tracking-wider">
+      <label
+        htmlFor={htmlFor}
+        className="block text-xs font-medium text-sand-400 mb-2 uppercase tracking-wider"
+      >
         {label}
       </label>
       {children}

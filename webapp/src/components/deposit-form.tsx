@@ -24,13 +24,19 @@ export function DepositForm({
   error,
   onGenerate,
 }: DepositFormProps) {
+  // The "Reclaim Configuration" field wraps two mutually-exclusive controls;
+  // point the label at whichever is currently visible.
+  const reclaimControlId =
+    form.reclaimMode === "pubkey" ? "deposit-btc-pubkey" : "deposit-reclaim-script";
+
   return (
     <div
       className={`glass-card p-6 sm:p-8 space-y-6 transition-opacity duration-300 ${disabled ? "opacity-60" : ""}`}
     >
       {/* Stacks Recipient */}
-      <Field label="Stacks Recipient">
+      <Field label="Stacks Recipient" htmlFor="deposit-stx-address">
         <input
+          id="deposit-stx-address"
           type="text"
           className="input-field font-mono"
           placeholder={
@@ -43,7 +49,7 @@ export function DepositForm({
       </Field>
 
       {/* Reclaim Method */}
-      <Field label="Reclaim Configuration">
+      <Field label="Reclaim Configuration" htmlFor={reclaimControlId}>
         <div className="flex gap-2 mb-3">
           <button
             onClick={() => onChange({ reclaimMode: "pubkey" })}
@@ -64,6 +70,7 @@ export function DepositForm({
         {form.reclaimMode === "pubkey" && (
           <>
             <input
+              id="deposit-btc-pubkey"
               type="text"
               className="input-field font-mono"
               placeholder="Compressed public key (hex, 33 bytes)"
@@ -80,6 +87,7 @@ export function DepositForm({
         )}
         {form.reclaimMode === "script" && (
           <textarea
+            id="deposit-reclaim-script"
             className="input-field font-mono resize-none h-20"
             placeholder="Raw reclaim script in hex"
             value={form.reclaimScriptHex}
@@ -108,8 +116,9 @@ export function DepositForm({
 
       {/* Settings */}
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Max Fee (sats)">
+        <Field label="Max Fee (sats)" htmlFor="deposit-max-fee">
           <input
+            id="deposit-max-fee"
             type="number"
             min="1"
             className="input-field"
@@ -118,8 +127,9 @@ export function DepositForm({
             onChange={(e) => onChange({ maxFee: Number(e.target.value) })}
           />
         </Field>
-        <Field label="Lock Time (blocks)">
+        <Field label="Lock Time (blocks)" htmlFor="deposit-lock-time">
           <input
+            id="deposit-lock-time"
             type="number"
             min="1"
             className="input-field"

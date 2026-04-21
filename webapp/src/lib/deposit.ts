@@ -56,8 +56,15 @@ export function validateDepositInputs(input: DepositInputs): string | null {
   }
   if (input.maxFee <= 0) return "Max fee must be greater than 0.";
   if (input.lockTime <= 0) return "Lock time must be greater than 0.";
-  if (input.reclaimMode === "script" && !input.reclaimScriptHex) {
-    return "Reclaim script hex is required.";
+  if (input.reclaimMode === "script") {
+    const cleaned = input.reclaimScriptHex.replace(/^0x/, "");
+    if (!cleaned) return "Reclaim script hex is required.";
+    if (!/^[0-9a-fA-F]+$/.test(cleaned)) {
+      return "Reclaim script must be valid hex.";
+    }
+    if (cleaned.length % 2 !== 0) {
+      return "Reclaim script must have an even number of hex characters.";
+    }
   }
   return null;
 }

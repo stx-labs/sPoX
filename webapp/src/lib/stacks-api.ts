@@ -42,6 +42,10 @@ function unwrapClarityBuffer(cv: ClarityValue): string {
   switch (cv.type) {
     case ClarityType.ResponseOk:
       return unwrapClarityBuffer(cv.value);
+    case ClarityType.ResponseErr:
+      throw new Error(
+        `sBTC registry returned an error: ${cv.value}`,
+      );
     case ClarityType.OptionalSome:
       return unwrapClarityBuffer(cv.value);
     case ClarityType.OptionalNone:
