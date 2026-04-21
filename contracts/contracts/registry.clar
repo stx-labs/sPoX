@@ -57,10 +57,10 @@
 )
 
 (define-read-only (get-address (id uint))
-  (match (map-get? deposit-address id)
-    entry (some (merge entry { id: id }))
-    none
-  )
+  {
+    id: id,
+    address: (map-get? deposit-address id),
+  }
 )
 
 ;; private functions

@@ -79,20 +79,24 @@ describe("get-addresses", () => {
     );
 
     expect(result).toBeList([
-      Cl.some(
-        Cl.tuple({
-          id: Cl.uint(0),
-          "deposit-script": depositScript,
-          "reclaim-script": reclaimScript,
-        }),
-      ),
-      Cl.some(
-        Cl.tuple({
-          id: Cl.uint(1),
-          "deposit-script": depositScript2,
-          "reclaim-script": reclaimScript2,
-        }),
-      ),
+      Cl.tuple({
+        id: Cl.uint(0),
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript,
+            "reclaim-script": reclaimScript,
+          }),
+        ),
+      }),
+      Cl.tuple({
+        id: Cl.uint(1),
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript2,
+            "reclaim-script": reclaimScript2,
+          }),
+        ),
+      }),
     ]);
   });
 
@@ -103,7 +107,12 @@ describe("get-addresses", () => {
       [Cl.list([Cl.uint(999)])],
       wallet1,
     );
-    expect(result).toBeList([Cl.none()]);
+    expect(result).toBeList([
+      Cl.tuple({
+        id: Cl.uint(999),
+        address: Cl.none(),
+      }),
+    ]);
   });
 });
 
@@ -131,13 +140,15 @@ describe("remove-addresses", () => {
       wallet1,
     );
     expect(getResult).toBeList([
-      Cl.some(
-        Cl.tuple({
-          id: Cl.uint(0),
-          "deposit-script": depositScript,
-          "reclaim-script": reclaimScript,
-        }),
-      ),
+      Cl.tuple({
+        id: Cl.uint(0),
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript,
+            "reclaim-script": reclaimScript,
+          }),
+        ),
+      }),
     ]);
   });
 
@@ -155,13 +166,17 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       wallet1,
     );
-    expect(initialResult).toBeList([Cl.some(
+    expect(initialResult).toBeList([
       Cl.tuple({
         id: Cl.uint(0),
-        "deposit-script": depositScript,
-        "reclaim-script": reclaimScript,
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript,
+            "reclaim-script": reclaimScript,
+          }),
+        ),
       }),
-    )]);
+    ]);
 
     const { result } = simnet.callPublicFn(
       "registry",
@@ -177,7 +192,12 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       wallet1,
     );
-    expect(getResult).toBeList([Cl.none()]);
+    expect(getResult).toBeList([
+      Cl.tuple({
+        id: Cl.uint(0),
+        address: Cl.none(),
+      }),
+    ]);
   });
 
   it("rejects removal by unauthorized user", () => {
@@ -194,13 +214,17 @@ describe("remove-addresses", () => {
       [Cl.list([Cl.uint(0)])],
       wallet1,
     );
-    expect(initialResult).toBeList([Cl.some(
+    expect(initialResult).toBeList([
       Cl.tuple({
         id: Cl.uint(0),
-        "deposit-script": depositScript,
-        "reclaim-script": reclaimScript,
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript,
+            "reclaim-script": reclaimScript,
+          }),
+        ),
       }),
-    )]);
+    ]);
 
     const { result } = simnet.callPublicFn(
       "registry",
@@ -217,13 +241,15 @@ describe("remove-addresses", () => {
       wallet1,
     );
     expect(getResult).toBeList([
-      Cl.some(
-        Cl.tuple({
-          id: Cl.uint(0),
-          "deposit-script": depositScript,
-          "reclaim-script": reclaimScript,
-        }),
-      ),
+      Cl.tuple({
+        id: Cl.uint(0),
+        address: Cl.some(
+          Cl.tuple({
+            "deposit-script": depositScript,
+            "reclaim-script": reclaimScript,
+          }),
+        ),
+      }),
     ]);
   });
 

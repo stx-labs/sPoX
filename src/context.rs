@@ -7,6 +7,8 @@ use emily_client::apis::configuration::Configuration as EmilyConfig;
 use crate::bitcoin::node::BitcoinCoreClient;
 use crate::config::Settings;
 use crate::error::Error;
+use crate::stacks::node::StacksClient;
+use crate::stacks::registry::DepositAddressRegistry;
 use crate::storage::memory::{SharedStore, Store};
 
 /// Application context
@@ -16,6 +18,7 @@ pub struct Context {
     emily_config: Arc<EmilyConfig>,
     storage: SharedStore,
     settings: Arc<Settings>,
+    registry: Option<Arc<DepositAddressRegistry>>,
 }
 
 impl TryFrom<&Settings> for Context {
@@ -31,12 +34,21 @@ impl TryFrom<&Settings> for Context {
                 .to_string(),
             ..Default::default()
         };
+        let registry = value
+            .registry_contract
+            .clone()
+            .map(|registry_contract| {
+                StacksClient::try_from(value)
+                    .map(|client| Arc::new(DepositAddressRegistry::new(registry_contract, client)))
+            })
+            .transpose()?;
 
         Ok(Self {
             bitcoin_client,
             emily_config: Arc::new(emily_config),
             storage: Store::new_shared(),
             settings: Arc::new(value.clone()),
+            registry,
         })
     }
 }
@@ -60,5 +72,10 @@ impl Context {
     /// Get a reference to the config
     pub fn settings(&self) -> &Settings {
         &self.settings
+    }
+
+    /// Get a reference to the registry
+    pub fn registry(&self) -> Option<&DepositAddressRegistry> {
+        self.registry.as_deref()
     }
 }
