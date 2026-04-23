@@ -26,16 +26,27 @@ bitcoin_rpc_endpoint = "http://devnet:devnet@127.0.0.1:18443"
 # !! Monitored deposits
 # !! ---------------------------------------------------------------------------
 # !! Each `[deposit.<alias>]` is a monitored deposit.
+# !! The value used here are for sBTC devenv, they MUST be changed in non-test
+# !! environments
 # !! ===========================================================================
 [deposit.demo]
 # sBTC devenv demo configuration
 # `signers_xonly` has a placeholder value since it's not constant
 signers_xonly = "0000000000000000000000000000000000000000000000000000000000000001"
+
+# sBTC recipient
 recipient = "ST3497E9JFQ7KB9VEHAZRWYKF3296WQZEXBPXG193"
+
+# Maximum sats fee paid by the sBTC signers to sweep this deposit
 max_fee = 20000
-lock_time = 950
+
+# lock time after which the deposit can be reclaimed
+lock_time = 10
+
+# The free portion of the reclaim script (after the `<lockTime> OP_CSV` prefix), in hex
+# This is the script used by sBTC devenv demo cli when creating a deposit
 # This MUST be configured correctly in non-test environments
-reclaim_script = ""
+reclaim_script = "75206c44dfe47941b0271c642c549d9a763afce7c6b0495c72f1a32c2f09898ea3dfac" # OP_DROP OP_PUSHBYTES_32 <key> OP_CHECKSIG
 
 # !! ===========================================================================
 # !! Stacks configuration
