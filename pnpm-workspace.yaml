@@ -1,2 +1,5 @@
 packages:
   - 'contracts'
+  - 'tests'
+
+minimumReleaseAge: 1440 # 24 hours

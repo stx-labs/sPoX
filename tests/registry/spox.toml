@@ -1,0 +1,8 @@
+emily_endpoint = "http://127.0.0.1:3031"
+bitcoin_rpc_endpoint = "http://devnet:devnet@127.0.0.1:18443"
+
+registry_contract = "ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039.registry"
+
+[stacks]
+rpc_endpoint = "http://127.0.0.1:20443"
+sbtc_deployer = "SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS"

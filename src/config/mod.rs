@@ -34,7 +34,7 @@ pub struct MonitoredDepositConfig {
     pub max_fee: u64,
     /// The reclaim lock time
     pub lock_time: u32,
-    /// The reclaim script
+    /// The free portion of the reclaim script (after the `<lockTime> OP_CSV` prefix)
     #[serde(deserialize_with = "script_deserializer")]
     pub reclaim_script: ScriptBuf,
 }
