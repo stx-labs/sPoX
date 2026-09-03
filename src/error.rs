@@ -71,6 +71,10 @@ pub enum Error {
     #[error("missing stacks configuration")]
     MissingStacksConfig,
 
+    /// Missing reward-claims configuration
+    #[error("missing reward-claims configuration")]
+    MissingRewardClaimsConfig,
+
     /// No registry contract configured
     #[error("no registry contract configured")]
     NoRegistryConfigured,
@@ -115,6 +119,13 @@ pub enum Error {
     #[error("response from stacks node did not conform to the expected schema: {0}")]
     UnexpectedStacksResponse(#[source] reqwest::Error),
 
+    /// This variant is for when the clarity principal returned from our
+    /// read-only call for the signer manager is not a qualitfied contract
+    /// identifier. This should never happen, seeing it means we have a bug
+    /// in the smart contract.
+    #[error("the clarity principal was not a smart contract principal")]
+    UnexpectedPrincipal(clarity::vm::types::PrincipalData),
+
     /// Unexpected local timestamp
     #[error("unexpected local timestamp")]
     UnexpectedLocalTimestamp,
@@ -122,4 +133,8 @@ pub enum Error {
     /// Registry returned ids that do not match the requested ids
     #[error("registry returned ids that do not match the requested ids")]
     MismatchingRawAddressIds,
+
+    /// Failed to parse a hex-encoded integer from a Stacks node response.
+    #[error("could not parse hex integer: {0}")]
+    ParseHexInt(#[source] std::num::ParseIntError),
 }
