@@ -31,6 +31,7 @@ export const wallet4 = accounts.get("wallet_4")!;
 
 export const SIGNER_MANAGER = `${deployer}.signer-manager`;
 export const MOCK_SIGNER_MANAGER = `${deployer}.mock-signer-manager`;
+export const MALICIOUS_SIGNER_MANAGER = `${deployer}.malicious-signer-manager`;
 export const SWEEP_REGISTRY = `${deployer}.reward-claim-registry`;
 export const SBTC_TOKEN =
   "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
@@ -60,23 +61,34 @@ const CHAIN_ID = 2147483648;
 export const SIGNER_PRIVATE_KEY = "a".repeat(63) + "1";
 /** Distinct key for mock-signer-manager so both can be registered in one simnet. */
 export const MOCK_SIGNER_PRIVATE_KEY = "b".repeat(63) + "1";
+/** Distinct key for malicious-signer-manager reentrancy tests. */
+export const MALICIOUS_SIGNER_PRIVATE_KEY = "c".repeat(63) + "1";
+
+/** Reentry modes for malicious-signer-manager.set-reenter-mode. */
+export const REENTER_NONE = 0n;
+export const REENTER_PROCESS_CLAIMS = 2n;
+export const REENTER_CANCEL = 3n;
+export const REENTER_SETTLE = 4n;
+export const REENTER_ADD_CLAIMS = 5n;
+export const REENTER_REGISTER = 6n;
 
 // reward-claim-registry error codes
 export const ERR_NOT_REGISTERED = 600n;
-export const ERR_INSUFFICIENT_FEE = 601n;
+export const ERR_MAX_NUM_CLAIMS_EXCEEDED = 601n;
 export const ERR_NOT_ADMIN = 602n;
 export const ERR_NO_CURRENT_POSITION = 603n;
-export const ERR_ZERO_FEE = 604n;
+export const ERR_ZERO_NUM_CLAIMS = 604n;
 export const ERR_ALREADY_CLAIMED = 605n;
-export const ERR_TOO_MANY_PENDING = 606n;
+export const ERR_REWARDS_NOT_CALCULATED = 606n;
 export const ERR_UNKNOWN_PENDING_WITHDRAWAL = 607n;
 export const ERR_INVALID_START_REWARD_CYCLE = 608n;
 export const ERR_UNAUTHORIZED = 609n;
 export const ERR_ALREADY_REGISTERED = 610n;
 export const ERR_SIGNER_MANAGER_MISMATCH = 611n;
+export const ERR_REENTRANT_CALL = 612n;
 
-/** reward-claim-registry's default fee-per-sweep. */
-export const FEE_PER_CLAIM = 100_000n;
+/** reward-claim-registry's default fee-per-claim. */
+export const FEE_PER_CLAIM = 10_000n;
 
 // ---------------------------------------------------------------------------
 // low-level helpers
@@ -101,6 +113,14 @@ export function mineUntil(target: bigint) {
   if (target > current) {
     simnet.mineEmptyBurnBlocks(Number(target - current));
   }
+}
+
+/** Bitcoin blocks after indexing before get-pending-withdrawals consults sBTC. */
+export const WITHDRAWAL_MIN_BURN_AGE = 7n;
+
+/** Mine enough burn blocks for an indexed withdrawal to pass the listing age gate. */
+export function mineUntilWithdrawalListable() {
+  simnet.mineEmptyBurnBlocks(Number(WITHDRAWAL_MIN_BURN_AGE));
 }
 
 export function rewardCycleToBurnHeight(cycle: bigint): bigint {
@@ -145,10 +165,27 @@ export function distributionCycleToBurnHeight(cycle: bigint): bigint {
 
 /**
  * Mine until current-distribution-cycle > distCycle, so a registration whose
- * next-claim-distribution is `distCycle` becomes pending (k < CD).
+ * next-claim-distribution is `distCycle` becomes time-eligible (k < CD), then
+ * run pox-5 calculate-rewards so that claim distribution is covered
+ * (compute at CD = distCycle+1). Pass active bond indexes when bonds are
+ * live; otherwise pox-5 rejects an empty bond-periods list.
  */
-export function mineUntilPastDistribution(distCycle: bigint) {
+export function mineUntilPastDistribution(
+  distCycle: bigint,
+  bondPeriods: bigint[] = [],
+) {
   mineUntil(distributionCycleToBurnHeight(distCycle + 1n));
+  return calculateRewards(bondPeriods);
+}
+
+/** Run pox-5 calculate-rewards for the current distribution cycle. */
+export function calculateRewards(bondPeriods: bigint[] = []) {
+  return simnet.callPublicFn(
+    POX5,
+    "calculate-rewards",
+    [Cl.list(bondPeriods.map((b) => Cl.uint(b)))],
+    deployer,
+  );
 }
 
 /**
@@ -307,6 +344,77 @@ export function setMockClaimRewardsResult(shouldError: boolean, code = 1001n) {
   );
 }
 
+export function registerMaliciousSignerManager(
+  privateKey = MALICIOUS_SIGNER_PRIVATE_KEY,
+) {
+  const authId = authIdCounter++;
+  const signerKey = compressPublicKey(privateKeyToPublic(privateKey));
+  const signerSig = signSignerKeyGrant(MALICIOUS_SIGNER_MANAGER, authId, privateKey);
+  return simnet.callPublicFn(
+    "malicious-signer-manager",
+    "register-self",
+    [
+      Cl.principal(MALICIOUS_SIGNER_MANAGER),
+      Cl.bufferFromHex(signerKey),
+      Cl.uint(authId),
+      Cl.bufferFromHex(signerSig),
+    ],
+    deployer,
+  );
+}
+
+/** Stake `amount` uSTX under malicious-signer-manager. */
+export function stakeForMalicious(staker: string, amount: bigint, numCycles: bigint) {
+  return simnet.callPublicFn(
+    POX5,
+    "stake",
+    [
+      Cl.principal(MALICIOUS_SIGNER_MANAGER),
+      Cl.uint(amount),
+      Cl.uint(numCycles),
+      Cl.uint(burnHeight()),
+      Cl.none(),
+    ],
+    staker,
+  );
+}
+
+export function setMaliciousReenterMode(mode: bigint, staker: string) {
+  return simnet.callPublicFn(
+    "malicious-signer-manager",
+    "set-reenter-mode",
+    [Cl.uint(mode), Cl.principal(staker)],
+    deployer,
+  );
+}
+
+export function setMaliciousWithdrawalRequest(wid: OptionalCV<UIntCV>) {
+  return simnet.callPublicFn(
+    "malicious-signer-manager",
+    "set-withdrawal-request",
+    [wid],
+    deployer,
+  );
+}
+
+export function getMaliciousLastReenterError() {
+  return simnet.callReadOnlyFn(
+    "malicious-signer-manager",
+    "get-last-reenter-error",
+    [],
+    deployer,
+  ).result;
+}
+
+export function setMockSettleResult(shouldError: boolean, code = 1001n) {
+  return simnet.callPublicFn(
+    "mock-signer-manager",
+    "set-settle-result",
+    [Cl.bool(shouldError), Cl.uint(code)],
+    deployer,
+  );
+}
+
 export function setMockClaimStakerResult(
   shouldError: boolean,
   code = 1001n,
@@ -456,6 +564,28 @@ export function stakeFor(staker: string, amount: bigint, numCycles: bigint) {
   );
 }
 
+/** Switch a live stake to a different signer-manager via pox-5 `stake-update`. */
+export function stakeUpdate(
+  staker: string,
+  newSignerManager: string,
+  oldSignerManager: string,
+  cyclesToExtend = 0n,
+  amountIncrease = 0n,
+) {
+  return simnet.callPublicFn(
+    POX5,
+    "stake-update",
+    [
+      Cl.principal(newSignerManager),
+      Cl.principal(oldSignerManager),
+      Cl.uint(cyclesToExtend),
+      Cl.uint(amountIncrease),
+      Cl.none(),
+    ],
+    staker,
+  );
+}
+
 /**
  * Fund pox-5 with sBTC for `rewardCycle`, advance to that cycle's distribution
  * boundary, and run pox-5 calculate-rewards -- but NOT the signer-manager
@@ -470,7 +600,7 @@ export function fundAndCalculateRewards(rewards: bigint, rewardCycle: bigint) {
     deployer,
   );
   mineUntil(rewardCycleToBurnHeight(rewardCycle) + HALF_CYCLE_LENGTH);
-  return simnet.callPublicFn(POX5, "calculate-rewards", [Cl.list([])], deployer);
+  return calculateRewards();
 }
 
 /**
@@ -510,7 +640,7 @@ export function getEarned(
 
 export function registerForClaims(
   staker: string,
-  fee: bigint,
+  numClaims: bigint,
   sender: string,
   signerManager: string,
   startRewardCycle: bigint,
@@ -524,7 +654,39 @@ export function registerForClaims(
       Cl.principal(signerManager),
       Cl.uint(startRewardCycle),
       Cl.bool(oneClaimPerRewardCycle),
-      Cl.uint(fee),
+      Cl.uint(numClaims),
+    ],
+    sender,
+  );
+}
+
+export type RegisterManyEntry = {
+  staker: string;
+  startRewardCycle: bigint;
+  oneClaimPerRewardCycle: boolean;
+  numClaims: bigint;
+};
+
+export function registerManyForClaims(
+  stakers: RegisterManyEntry[],
+  sender: string,
+  signerManager: string,
+) {
+  return simnet.callPublicFn(
+    "reward-claim-registry",
+    "register-many-for-claims",
+    [
+      Cl.principal(signerManager),
+      Cl.list(
+        stakers.map((entry) =>
+          Cl.tuple({
+            staker: Cl.principal(entry.staker),
+            "start-reward-cycle": Cl.uint(entry.startRewardCycle),
+            "one-claim-per-reward-cycle": Cl.bool(entry.oneClaimPerRewardCycle),
+            "num-claims": Cl.uint(entry.numClaims),
+          }),
+        ),
+      ),
     ],
     sender,
   );
@@ -532,14 +694,43 @@ export function registerForClaims(
 
 export function addClaims(
   staker: string,
-  fee: bigint,
+  numClaims: bigint,
   sender: string,
   signerManager: string,
 ) {
   return simnet.callPublicFn(
     "reward-claim-registry",
     "add-claims",
-    [Cl.principal(staker), Cl.principal(signerManager), Cl.uint(fee)],
+    [Cl.principal(staker), Cl.principal(signerManager), Cl.uint(numClaims)],
+    sender,
+  );
+}
+
+export function cancelRegistration(
+  staker: string,
+  sender: string,
+  signerManager: string,
+) {
+  return simnet.callPublicFn(
+    "reward-claim-registry",
+    "cancel-registration",
+    [Cl.principal(staker), Cl.principal(signerManager)],
+    sender,
+  );
+}
+
+export function cancelManyRegistrations(
+  stakers: string[],
+  sender: string,
+  signerManager: string,
+) {
+  return simnet.callPublicFn(
+    "reward-claim-registry",
+    "cancel-many-registrations",
+    [
+      Cl.principal(signerManager),
+      Cl.list(stakers.map((staker) => Cl.principal(staker))),
+    ],
     sender,
   );
 }
@@ -566,6 +757,15 @@ export function getRegistration(staker: string, signerManager: string) {
   ).result;
 }
 
+export function getMaxProcessedDistribution(staker: string) {
+  return simnet.callReadOnlyFn(
+    "reward-claim-registry",
+    "get-max-processed-distribution",
+    [Cl.principal(staker)],
+    deployer,
+  ).result;
+}
+
 export function getPendingClaims(cursor: OptionalCV = Cl.none()) {
   return simnet.callReadOnlyFn(
     "reward-claim-registry",
@@ -575,10 +775,28 @@ export function getPendingClaims(cursor: OptionalCV = Cl.none()) {
   ).result;
 }
 
-export function getPendingSettlements(cursor = Cl.none()) {
+export function getRegistrations(cursor: OptionalCV = Cl.none()) {
   return simnet.callReadOnlyFn(
     "reward-claim-registry",
-    "get-pending-settlements",
+    "get-registrations",
+    [cursor],
+    deployer,
+  ).result;
+}
+
+export function getPendingWithdrawals(cursor: OptionalCV = Cl.none()) {
+  return simnet.callReadOnlyFn(
+    "reward-claim-registry",
+    "get-pending-withdrawals",
+    [cursor],
+    deployer,
+  ).result;
+}
+
+export function getWithdrawals(cursor: OptionalCV = Cl.none()) {
+  return simnet.callReadOnlyFn(
+    "reward-claim-registry",
+    "get-withdrawals",
     [cursor],
     deployer,
   ).result;
@@ -604,6 +822,16 @@ export function rejectWithdrawal(requestId: bigint) {
     "reject-withdrawal-request",
     [Cl.uint(requestId), Cl.uint(0)],
     SBTC_SIGNER,
+  );
+}
+
+/** Direct signer-manager settle; deletes its map entry without touching the registry. */
+export function settleAcceptedWithdrawalOnSignerManager(requestId: bigint, sender: string) {
+  return simnet.callPublicFn(
+    "signer-manager",
+    "settle-accepted-withdrawal",
+    [Cl.uint(requestId)],
+    sender,
   );
 }
 

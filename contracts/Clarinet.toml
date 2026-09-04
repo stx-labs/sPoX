@@ -45,11 +45,6 @@ path = "contracts/registry.clar"
 clarity_version = 6
 epoch = 4.0
 
-[contracts.reward-claim-traits]
-path = "contracts/reward-claim-traits.clar"
-clarity_version = 6
-epoch = 4.0
-
 [contracts.reward-claim-registry]
 path = "contracts/reward-claim-registry.clar"
 clarity_version = 6
@@ -70,5 +65,10 @@ epoch = 4.0
 
 [contracts.mock-signer-manager]
 path = "contracts/mock-signer-manager.clar"
+clarity_version = 6
+epoch = 4.0
+
+[contracts.malicious-signer-manager]
+path = "contracts/malicious-signer-manager.clar"
 clarity_version = 6
 epoch = 4.0

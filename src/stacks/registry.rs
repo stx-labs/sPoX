@@ -1,11 +1,10 @@
 //! Client for the on-chain deposit address registry.
 
 use bitcoin::ScriptBuf;
-use clarity::types::chainstate::StacksAddress;
 use clarity::vm::types::{
     ListData, ListTypeData, QualifiedContractIdentifier, SequenceData, TupleData,
 };
-use clarity::vm::{ClarityName, ContractName, Value};
+use clarity::vm::{ClarityName, Value};
 use sbtc::deposits::{DepositScriptInputs, ReclaimScriptInputs};
 
 use crate::error::Error;
@@ -37,10 +36,8 @@ pub struct RawRegisteredDeposit {
 /// Client for querying the on-chain deposit address registry contract.
 #[derive(Debug, Clone)]
 pub struct DepositAddressRegistry {
-    /// The deployer of the registry smart contract.
-    contract_principal: StacksAddress,
-    /// The name of the registry smart contract.
-    contract_name: ContractName,
+    /// The contract identifier of the registry smart contract.
+    contract: QualifiedContractIdentifier,
     /// The client used to make the requests.
     client: StacksClient,
 }
@@ -48,13 +45,7 @@ pub struct DepositAddressRegistry {
 impl DepositAddressRegistry {
     /// Create a new deposit address registry
     pub fn new(contract: QualifiedContractIdentifier, client: StacksClient) -> Self {
-        let contract_principal = contract.issuer.into();
-
-        Self {
-            contract_name: contract.name,
-            contract_principal,
-            client,
-        }
+        Self { contract, client }
     }
 
     /// Get the next address id from the registry
@@ -62,11 +53,12 @@ impl DepositAddressRegistry {
         let result = self
             .client
             .call_read(
-                &self.contract_principal,
-                &self.contract_name,
-                &ClarityName::from("get-next-address-id"),
-                &self.contract_principal,
+                &self.contract.issuer,
+                &self.contract.name,
+                &ClarityName::from_literal("get-next-address-id"),
+                &self.contract.issuer,
                 &[],
+                None,
             )
             .await?;
 
@@ -94,7 +86,7 @@ impl DepositAddressRegistry {
             clarity::vm::types::TypeSignature::UIntType,
             GET_ADDRESSES_MAX_IDS,
         )
-        .map_err(|e| Error::ClarityBadList(Box::new(clarity::vm::errors::Error::Unchecked(e))))?;
+        .map_err(|e| Error::ClarityBadList(Box::new(e)))?;
 
         let list = Value::list_with_type(
             &clarity::types::StacksEpochId::latest(),
@@ -107,11 +99,12 @@ impl DepositAddressRegistry {
         let result = self
             .client
             .call_read(
-                &self.contract_principal,
-                &self.contract_name,
-                &ClarityName::from("get-addresses"),
-                &self.contract_principal,
+                &self.contract.issuer,
+                &self.contract.name,
+                &ClarityName::from_literal("get-addresses"),
+                &self.contract.issuer,
                 &arguments,
+                None,
             )
             .await?;
 
@@ -191,11 +184,11 @@ mod tests {
         fn from(value: &RawRegisteredDepositScripts) -> Self {
             let tuple_entries = vec![
                 (
-                    ClarityName::from("deposit-script"),
+                    ClarityName::from_literal("deposit-script"),
                     Value::buff_from(value.deposit_script.clone()).unwrap(),
                 ),
                 (
-                    ClarityName::from("reclaim-script"),
+                    ClarityName::from_literal("reclaim-script"),
                     Value::buff_from(value.reclaim_script.clone()).unwrap(),
                 ),
             ];
@@ -210,9 +203,12 @@ mod tests {
                 .as_ref()
                 .map(|scripts| Box::new(scripts.into()));
             let tuple_entries = vec![
-                (ClarityName::from("id"), Value::UInt(value.id as u128)),
                 (
-                    ClarityName::from("address"),
+                    ClarityName::from_literal("id"),
+                    Value::UInt(value.id as u128),
+                ),
+                (
+                    ClarityName::from_literal("address"),
                     Value::Optional(OptionalData { data: address }),
                 ),
             ];
@@ -233,7 +229,7 @@ mod tests {
         // Setup our mock server
         let mut stacks_node_server = mockito::Server::new_async().await;
         let mock = stacks_node_server
-            .mock("POST", "/v2/contracts/call-read/ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039/registry/get-next-address-id?tip=latest")
+            .mock("POST", "/v3/contracts/fast-call-read/ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039/registry/get-next-address-id?tip=latest")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(&raw_json_response)
@@ -242,7 +238,7 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
-        let client = StacksClient::new(client_url).unwrap();
+        let client = StacksClient::new(client_url, "").unwrap();
 
         // Setup our registry
         let registry = DepositAddressRegistry::new(
@@ -269,8 +265,10 @@ mod tests {
             source: MonitoredDepositSource::Registry(123),
             deposit_script_inputs: DepositScriptInputs {
                 signers_public_key,
-                recipient: PrincipalData::parse("ST2FQWJMF9CGPW34ZWK8FEPNK072NEV1VKRNBBMJ9")
-                    .unwrap(),
+                recipient: crate::storage::model::as_principal_data(
+                    &PrincipalData::parse("ST2FQWJMF9CGPW34ZWK8FEPNK072NEV1VKRNBBMJ9").unwrap(),
+                )
+                .unwrap(),
                 max_fee: 456,
             },
             reclaim_script_inputs: ReclaimScriptInputs::try_new(
@@ -333,7 +331,7 @@ mod tests {
         .unwrap();
 
         let mock = stacks_node_server
-            .mock("POST", "/v2/contracts/call-read/ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039/registry/get-addresses?tip=latest")
+            .mock("POST", "/v3/contracts/fast-call-read/ST2SBXRBJJTH7GV5J93HJ62W2NRRQ46XYBK92Y039/registry/get-addresses?tip=latest")
             .match_body(mockito::Matcher::PartialJson(serde_json::json!({
                 "arguments": [serialized_request_ids]
             })))
@@ -345,7 +343,7 @@ mod tests {
 
         // Setup our Stacks client
         let client_url = url::Url::parse(stacks_node_server.url().as_str()).unwrap();
-        let client = StacksClient::new(client_url).unwrap();
+        let client = StacksClient::new(client_url, "").unwrap();
 
         // Setup our registry
         let registry = DepositAddressRegistry::new(

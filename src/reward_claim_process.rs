@@ -1,8 +1,8 @@
-//! Tip-driven process that advances reward claims and settlements.
+//! Tip-driven process that advances reward claims and withdrawals.
 //!
 //! On each new Bitcoin chain tip the process:
 //! 1. Fetches pending claims and broadcasts `process-reward-claims` batches,
-//! 2. Fetches pending settlements and broadcasts `settle-pending-withdrawals`
+//! 2. Fetches pending withdrawals and broadcasts `settle-pending-withdrawals`
 //!    batches.
 //!
 //! Run via [`crate::dispatch::run_on_chain_tips`] alongside deposit
@@ -18,13 +18,19 @@ use crate::error::Error;
 use crate::stacks::node::StacksClient;
 use crate::stacks::node::SubmitTxResponse;
 use crate::stacks::reward_claim_registry::RewardClaimRegistry;
-use crate::stacks::transaction::AsContractCall as _;
+use crate::stacks::transaction::IntoContractCall as _;
 use crate::stacks::wallet::StacksWallet;
 
-/// The transaction fee for all contract call transactions against the
-/// registry.
+/// The transaction fee per element in batch contract calls against the
+/// registry. For `process-reward-claims` the element is a staker, while
+/// for `settle-pending-withdrawals` the element is an unsettled
+/// withdrawal.
+///
 /// TODO: remove and fetch the market fee rate from the node.
-const TX_FEE: u64 = 100000;
+const PER_ITEM_TX_FEE: u64 = 2000;
+
+/// The base transaction fee for contract calls against the registry.
+const BASE_TX_FEE: u64 = 3000;
 
 /// The loop for processing reward claims that runs whenever a new Bitcoin
 /// block is detected.
@@ -58,8 +64,8 @@ pub async fn process_reward_claims(mut rx: mpsc::Receiver<BlockRef>, context: Co
             tracing::warn!(%error, "error processing pending reward claims");
         }
 
-        if let Err(error) = process_pending_settlements(&context, &chain_tip).await {
-            tracing::warn!(%error, "error processing pending settlements");
+        if let Err(error) = process_withdrawals(&state, &chain_tip).await {
+            tracing::warn!(%error, "error processing pending withdrawals");
         }
     }
 }
@@ -73,7 +79,7 @@ pub async fn process_reward_claims(mut rx: mpsc::Receiver<BlockRef>, context: Co
 /// 2. Submits a process-reward-claims contract call for each batch of
 ///    claims, where a batch is a group of at most 100 stakers who are
 ///    associated with the same signer-manager.
-#[instrument(skip(state))]
+#[instrument(skip_all, fields(bitcoin_block_height = %chain_tip.block_height, bitcoin_block_hash = %chain_tip.block_hash))]
 async fn process_claims(state: &RewardClaimState, chain_tip: &BlockRef) -> Result<(), Error> {
     let batches = state.registry.get_pending_claim_batches().await?;
     if batches.is_empty() {
@@ -82,13 +88,16 @@ async fn process_claims(state: &RewardClaimState, chain_tip: &BlockRef) -> Resul
     }
 
     for batch in batches {
+        let num_stakers = batch.num_stakers() as u64;
         tracing::info!(
             "signer_manager" = %batch.signer_manager(),
-            "num_stakers" = %batch.stakers().len(),
+            "num_stakers" = %num_stakers,
             "processing process-reward-claims batch",
         );
-        let payload = batch.tx_payload();
-        let tx = state.wallet.sign_tx(payload, TX_FEE);
+
+        let tx_fee = num_stakers * PER_ITEM_TX_FEE + BASE_TX_FEE;
+        let payload = batch.into_tx_payload();
+        let tx = state.wallet.sign_tx(payload, tx_fee);
 
         match state.client().submit_tx(&tx).await {
             Ok(SubmitTxResponse::Acceptance(txid)) => {
@@ -112,18 +121,54 @@ async fn process_claims(state: &RewardClaimState, chain_tip: &BlockRef) -> Resul
     Ok(())
 }
 
-/// The function that processes pending settlements.
+/// The function that processes pending withdrawals.
 ///
 /// # Notes
 ///
 /// This function works as follows:
-/// 1. Gets all pending settlements from the registry.
+/// 1. Gets all pending withdrawals from the registry.
 /// 2. Submits a settle-pending-withdrawals contract call for each batch of
-///    settlements, where a batch is a group of at most 100 stakers who are
-///    associated with the same signer-manager.
-async fn process_pending_settlements(_: &Context, chain_tip: &BlockRef) -> Result<(), Error> {
-    // TODO(#40/#42): fetch pending settlements and submit settle-pending-withdrawals.
-    tracing::debug!(%chain_tip, "reward settlement processing not yet implemented");
+///    withdrawals, where a batch is a group of at most 100 withdrawals who
+///    are associated with the same signer-manager.
+#[instrument(skip_all, fields(bitcoin_block_height = %chain_tip.block_height, bitcoin_block_hash = %chain_tip.block_hash))]
+async fn process_withdrawals(state: &RewardClaimState, chain_tip: &BlockRef) -> Result<(), Error> {
+    let batches = state.registry.get_pending_withdrawal_batches().await?;
+    if batches.is_empty() {
+        tracing::info!("no pending reward withdrawals");
+        return Ok(());
+    }
+
+    for batch in batches {
+        let num_withdrawals = batch.num_withdrawals() as u64;
+        tracing::info!(
+            "signer_manager" = %batch.signer_manager(),
+            "num_withdrawals" = %num_withdrawals,
+            "processing settle-pending-withdrawals batch",
+        );
+
+        let tx_fee = num_withdrawals * PER_ITEM_TX_FEE + BASE_TX_FEE;
+        let payload = batch.into_tx_payload();
+        let tx = state.wallet.sign_tx(payload, tx_fee);
+
+        match state.client().submit_tx(&tx).await {
+            Ok(SubmitTxResponse::Acceptance(txid)) => {
+                tracing::info!(%txid, "submitted settle-pending-withdrawals batch");
+                state.increment_wallet_nonce();
+            }
+            Ok(SubmitTxResponse::Rejection(error)) => {
+                tracing::warn!(%error, "failed to submit settle-pending-withdrawals batch");
+            }
+            Err(error) => {
+                // It could be the case that we broadcast the transaction
+                // to the node and it was rejected by then we got an error
+                // here anyway. I don't see a clean way to handle this
+                // without adding another issue.
+                tracing::warn!(%error, "failed to submit settle-pending-withdrawals batch");
+            }
+        }
+    }
+
+    tracing::debug!(%chain_tip, "finished settle-pending-withdrawals submissions");
     Ok(())
 }
 
@@ -152,7 +197,7 @@ impl RewardClaimState {
         };
 
         // Let's go and get the current chain id.
-        let client = StacksClient::new(stacks.rpc_endpoint.clone())?;
+        let client = StacksClient::new(stacks.rpc_endpoint.clone(), &stacks.auth_token)?;
         let info = client.get_node_info().await?;
         let wallet = StacksWallet::new(config.private_key, info.chain_id, 0);
 

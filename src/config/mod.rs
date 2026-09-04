@@ -64,7 +64,7 @@ pub struct Settings {
     /// Registry smart contract address
     #[serde(default, deserialize_with = "contract_deserializer_option")]
     pub registry_contract: Option<QualifiedContractIdentifier>,
-    /// Reward-claim / settlement config.
+    /// Reward-claim registry config.
     ///
     /// Presence of this stanza enables the reward-claim process. Requires
     /// [`Settings::stacks`] as well.
@@ -81,6 +81,9 @@ pub struct StacksConfig {
     /// Stacks rpc endpoint
     #[serde(deserialize_with = "url_deserializer")]
     pub rpc_endpoint: Url,
+    /// Token sent as the `Authorization` header for stacks-core privileged
+    /// RPC.
+    pub auth_token: String,
     /// The address of the deployer of the sBTC smart contracts.
     #[serde(deserialize_with = "stacks_address_deserializer")]
     pub sbtc_deployer: StacksAddress,
@@ -229,7 +232,9 @@ mod tests {
         assert_eq!(settings.bitcoin_rpc_timeout, Duration::from_mins(5));
         assert!(settings.registry_contract.is_none());
         assert!(settings.reward_claims.is_none());
-        settings.stacks.as_ref().unwrap();
+        let stacks = settings.stacks.as_ref().unwrap();
+        assert_eq!(stacks.rpc_endpoint, parse_url("http://127.0.0.1:20443"));
+        assert_eq!(stacks.auth_token, "12345");
     }
 
     #[test]
