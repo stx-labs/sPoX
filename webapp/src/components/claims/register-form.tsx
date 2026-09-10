@@ -26,6 +26,7 @@ import {
   feeMicroForClaimCount,
   formatStxFromMicro,
   isValidContractPrincipal,
+  parseClaimCount,
   parseStxToMicro,
   principalMatchesNetwork,
   stacksExplorerTxUrlForConfig,
@@ -84,6 +85,16 @@ function SummaryItem({
       <dd>{children}</dd>
     </div>
   );
+}
+
+function registrationPostConditions(
+  sender: string,
+  numClaims: bigint,
+  feePerClaim: bigint | null,
+): PostCondition[] {
+  const escrow = feeMicroForClaimCount(numClaims, feePerClaim ?? 0n);
+  if (escrow <= 0n) return [];
+  return [Pc.principal(sender).willSendLte(escrow).ustx()];
 }
 
 function traitCheckMessage(check: SignerManagerTraitCheck): string {
@@ -412,7 +423,7 @@ export function RegisterForm() {
   const handleFeeStxChange = useCallback(
     (value: string) => {
       setFeeStx(value);
-      if (!feePerClaim) return;
+      if (feePerClaim === null || feePerClaim === 0n) return;
       const micro = parseStxToMicro(value);
       if (micro === null || micro <= 0n) {
         setClaimCount("");
@@ -435,15 +446,15 @@ export function RegisterForm() {
     );
   }, [feePerClaim]);
 
-  const feeMicro = useMemo(() => parseStxToMicro(feeStx), [feeStx]);
+  const numClaims = useMemo(
+    () => parseClaimCount(claimCount, feeStx, feePerClaim),
+    [claimCount, feeStx, feePerClaim],
+  );
 
-  const cyclesBought = useMemo(() => {
-    if (feeMicro === null || feePerClaim === null || feePerClaim === 0n) {
-      return null;
-    }
-    const raw = feeMicro / feePerClaim;
-    return raw > MAX_CLAIM_INSTALLMENTS ? MAX_CLAIM_INSTALLMENTS : raw;
-  }, [feeMicro, feePerClaim]);
+  const escrowMicro = useMemo(() => {
+    if (numClaims === null) return null;
+    return feeMicroForClaimCount(numClaims, feePerClaim ?? 0n);
+  }, [feePerClaim, numClaims]);
 
   const submitContractCall = useCallback(
     async (args: {
@@ -496,8 +507,12 @@ export function RegisterForm() {
       setError("Choose a claim cadence.");
       return;
     }
-    if (feeMicro === null || feeMicro <= 0n) {
-      setError("Enter a valid fee in STX (up to 6 decimal places).");
+    if (numClaims === null) {
+      setError(
+        feePerClaim === null
+          ? "Enter the number of prepaid claims."
+          : "Enter a valid number of prepaid claims (1–192).",
+      );
       return;
     }
     const needsTraitCheck =
@@ -537,19 +552,20 @@ export function RegisterForm() {
         Cl.principal(signerManager.trim()),
         Cl.uint(start),
         Cl.bool(oneClaimPerCycle),
-        Cl.uint(feeMicro),
+        Cl.uint(numClaims),
       ],
-      postConditions: [
-        Pc.principal(stxAddress ?? staker.trim())
-          .willSendLte(feeMicro)
-          .ustx(),
-      ],
+      postConditions: registrationPostConditions(
+        stxAddress ?? staker.trim(),
+        numClaims,
+        feePerClaim,
+      ),
       failed: "Registration failed",
     });
   }, [
-    feeMicro,
+    numClaims,
     checkSignerManagerTrait,
     config.claimsContract,
+    feePerClaim,
     oneClaimPerCycle,
     signerManager,
     traitCheck,
@@ -565,8 +581,12 @@ export function RegisterForm() {
       setError("Staker and signer-manager are required.");
       return;
     }
-    if (feeMicro === null || feeMicro <= 0n) {
-      setError("Enter a valid fee in STX (up to 6 decimal places).");
+    if (numClaims === null) {
+      setError(
+        feePerClaim === null
+          ? "Enter the number of prepaid claims."
+          : "Enter a valid number of prepaid claims (1–192).",
+      );
       return;
     }
 
@@ -575,13 +595,13 @@ export function RegisterForm() {
       functionArgs: [
         Cl.principal(staker.trim()),
         Cl.principal(signerManager.trim()),
-        Cl.uint(feeMicro),
+        Cl.uint(numClaims),
       ],
-      postConditions: [
-        Pc.principal(stxAddress ?? staker.trim())
-          .willSendLte(feeMicro)
-          .ustx(),
-      ],
+      postConditions: registrationPostConditions(
+        stxAddress ?? staker.trim(),
+        numClaims,
+        feePerClaim,
+      ),
       failed: "Add claims failed",
     });
     if (ok) {
@@ -590,8 +610,9 @@ export function RegisterForm() {
       await loadRegistration();
     }
   }, [
-    feeMicro,
+    feePerClaim,
     loadRegistration,
+    numClaims,
     signerManager,
     staker,
     stxAddress,
@@ -852,17 +873,22 @@ export function RegisterForm() {
           {loadingFeeRate && (
             <p className="claims-field-hint">Loading on-chain fee rate…</p>
           )}
-          {!loadingFeeRate && feePerClaim !== null && (
+          {!loadingFeeRate && feePerClaim !== null && feePerClaim > 0n && (
             <p className="claims-field-hint">
               On-chain rate: {formatStxFromMicro(feePerClaim)} STX per claim.
               Enter a claim count to fill escrow, or type escrow to see how many
               claims it buys.
             </p>
           )}
+          {!loadingFeeRate && feePerClaim === 0n && (
+            <p className="claims-field-hint">
+              On-chain rate: 0 STX per claim. Enter the number of claim
+              installments; no STX escrow is required.
+            </p>
+          )}
           {!loadingFeeRate && !config.claimsContract && (
             <p className="claims-field-hint">
-              Set the registry contract to fetch the on-chain fee rate and use
-              the claim-count helper.
+              Set the registry contract to fetch the on-chain fee rate.
             </p>
           )}
           {!loadingFeeRate &&
@@ -882,39 +908,37 @@ export function RegisterForm() {
             )}
 
           <div
-            className={`grid gap-4 mt-2 ${feePerClaim !== null ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}
+            className={`grid gap-4 mt-2 ${feePerClaim !== null && feePerClaim > 0n ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}
           >
-            {feePerClaim !== null && (
+            <label className="claims-field">
+              <span className="claims-field-sublabel">Number of claims</span>
+              <input
+                className="claims-input font-mono"
+                value={claimCount}
+                onChange={(e) => syncFeeFromClaimCount(e.target.value)}
+                placeholder="12"
+                inputMode="numeric"
+              />
+            </label>
+            {feePerClaim !== null && feePerClaim > 0n && (
               <label className="claims-field">
-                <span className="claims-field-sublabel">Number of claims</span>
+                <span className="claims-field-sublabel">Escrow (STX)</span>
                 <input
                   className="claims-input font-mono"
-                  value={claimCount}
-                  onChange={(e) => syncFeeFromClaimCount(e.target.value)}
-                  placeholder="12"
-                  inputMode="numeric"
+                  value={feeStx}
+                  onChange={(e) => handleFeeStxChange(e.target.value)}
+                  placeholder={formatStxFromMicro(feePerClaim)}
+                  inputMode="decimal"
                 />
               </label>
             )}
-            <label className="claims-field">
-              <span className="claims-field-sublabel">Escrow (STX)</span>
-              <input
-                className="claims-input font-mono"
-                value={feeStx}
-                onChange={(e) => handleFeeStxChange(e.target.value)}
-                placeholder={
-                  feePerClaim !== null
-                    ? formatStxFromMicro(feePerClaim)
-                    : "0.1"
-                }
-                inputMode="decimal"
-              />
-            </label>
           </div>
           <span className="claims-field-hint">
-            Escrows whole installments only
-            {cyclesBought !== null
-              ? ` — ${registered ? "adds" : "buys"} ${cyclesBought.toString()} claim${cyclesBought === 1n ? "" : "s"} (max ${MAX_CLAIM_INSTALLMENTS} per call)`
+            {feePerClaim !== null && feePerClaim > 0n
+              ? "Escrows whole installments only"
+              : "Each call accepts 1–192 claim installments"}
+            {numClaims !== null
+              ? ` — ${registered ? "adds" : "buys"} ${numClaims.toString()} claim${numClaims === 1n ? "" : "s"}${escrowMicro !== null && escrowMicro > 0n ? ` (${formatStxFromMicro(escrowMicro)} STX escrow)` : ""}`
               : ""}
             .
           </span>

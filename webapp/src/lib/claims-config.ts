@@ -333,6 +333,33 @@ export function feeMicroForClaimCount(
   return claimCount * feePerClaim;
 }
 
+/**
+ * Resolve the claim count for register/add-claims from the form inputs.
+ * Prefers an explicit claim count; otherwise derives from escrow when the rate is known.
+ */
+export function parseClaimCount(
+  claimCountInput: string,
+  feeStxInput: string,
+  feePerClaim: bigint | null,
+): bigint | null {
+  const trimmed = claimCountInput.trim();
+  if (trimmed) {
+    if (!/^\d+$/.test(trimmed)) return null;
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    const count = BigInt(parsed);
+    return count > MAX_CLAIM_INSTALLMENTS ? MAX_CLAIM_INSTALLMENTS : count;
+  }
+  if (feePerClaim !== null && feePerClaim > 0n) {
+    const micro = parseStxToMicro(feeStxInput);
+    if (micro === null || micro <= 0n) return null;
+    const raw = micro / feePerClaim;
+    if (raw <= 0n) return null;
+    return raw > MAX_CLAIM_INSTALLMENTS ? MAX_CLAIM_INSTALLMENTS : raw;
+  }
+  return null;
+}
+
 export function stacksExplorerContractUrlForConfig(
   contractId: string,
   config: Pick<ClaimsConfig, "network" | "apiUrl">,

@@ -4,6 +4,7 @@ import {
   claimsContractForNetwork,
   defaultApiUrlForNetwork,
   feeMicroForClaimCount,
+  parseClaimCount,
   formatStxFromMicro,
   parseStxToMicro,
   isValidContractPrincipal,
@@ -35,6 +36,25 @@ describe("parseStxToMicro", () => {
 describe("feeMicroForClaimCount", () => {
   it("multiplies claim count by the on-chain rate", () => {
     expect(feeMicroForClaimCount(12n, 250_000n)).toBe(3_000_000n);
+  });
+
+  it("returns zero escrow when the on-chain rate is zero", () => {
+    expect(feeMicroForClaimCount(12n, 0n)).toBe(0n);
+  });
+});
+
+describe("parseClaimCount", () => {
+  it("prefers an explicit claim count", () => {
+    expect(parseClaimCount("12", "", 250_000n)).toBe(12n);
+  });
+
+  it("derives claim count from escrow when the rate is known", () => {
+    expect(parseClaimCount("", "3", 250_000n)).toBe(12n);
+  });
+
+  it("requires an explicit count when the on-chain rate is zero", () => {
+    expect(parseClaimCount("", "0", 0n)).toBeNull();
+    expect(parseClaimCount("5", "0", 0n)).toBe(5n);
   });
 });
 
